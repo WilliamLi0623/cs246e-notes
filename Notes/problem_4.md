@@ -271,7 +271,7 @@ ex.
 
 ```C++
 struct Student {
-    student(int assns = 0, int mt = 0, int final = 0) {
+    Student(int assns = 0, int mt = 0, int final = 0) {
         this->assns = assns;
         ...
     }
