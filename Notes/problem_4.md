@@ -331,7 +331,7 @@ When an object is created, there are 4 steps:
 
 Field initialization should happen in step 3, but constructor body happens in step 4
 
-Consequence: object fields are intialized twice (step 4 is considered assignment step):
+Consequence: object fields are initialized twice (step 4 is considered assignment step):
 
 ```C++
 struct Student {
@@ -463,8 +463,7 @@ Objects:
 - A constructor always runs when they are created
 - A destructor always runs when they are destroyed
 
-Back to the vector example
-
+Back to the vector example-turn into a class
 #### vector.cc
 
 ```C++
@@ -472,7 +471,7 @@ export module vector
 
 namespace CS246E {
     export struct vector {
-        size_t n, cap;
+        size_t size, cap;
         int *theVector;
 
         vector();
@@ -490,16 +489,12 @@ namespace CS246E {
 ```C++
 module vector
 
-namespace {
-    void increaseCap(vector &v) {
-        ...
-    }
+void increaseCap(CS246E::vector &v) {
+    ...
 }
 
-const size_t startSize = 1;
-
-CS246E::vector::vector():
-    thevector{new int[1],size{0}, cap{1}} {
+CS246E::vector::vector(): 
+    size{0}, cap{1}, theVector{new int[1]} {
 }
 
 size_t CS246E::vector::size() {
@@ -516,6 +511,8 @@ CS246E::vector::~vector() {
 #### main.cc
 
 ```C++
+import vector;
+using CS246E::vector;
 int main() {
     vector v;   // Constructor is already called - no make_vector
     v.push_back(1);
