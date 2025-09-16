@@ -115,4 +115,4 @@ struct Node {
 ```
 
 ---
-[Linear Collections and Memory Management << ](./problem_4.md) | [**Home**](../README.md) | [>> Moves](./problem_6.md) 
+[Linear Collections and Memory Management << ](./problem_4.md) | [**Home**](../README.md) | [>> Thievery](./problem_6.md)

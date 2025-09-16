@@ -1,26 +1,26 @@
 [The Copier is broken! <<](./problem_5.md) | [**Home**](../README.md) | [>> I want a constant vector](./problem_7.md)
 
-# Problem 6: Moves
-## **2021-09-23**
+# Problem 6: Thievery
+## **2025-09-16**
 
 Consider:
 
 ```C++
-Node plusOne(Node n) { // pass-by-value = copy => copy ctor (half truth)
-    for (Node *p = &n; p; p = p->next) {
-        ++p->data;
-    }
-    return n;
+Node oddOrEvens() {
+    Node odds {1, new Node{3, new Node{5, nullptr}}};
+    Node evens {2, new Node{4, new Node{6, nullptr}}};
+    char c;
+    cin >> c;
+    if (c == '0') return evens;
+    else return odds;
 }
 
-Node n {1, new Node {2, nullptr}};
-Node m = plusOne(n);
+Node n = oddOrEvens(); // copy constructor, what is "other"? - reference to what?
 ```
 
-In this case, "other" is a reference to the *temporary object* created to hold the result of plusOne.
-
-- "Other" is a reference to this temporary
-- Copy constructor deep-copies the data from this temporary
+- Temporary object is created to hold the result of `oddOrEvens()`.
+- `other` is a reference to this temporary.
+- Copy constructor deep-copies the data from this temporary.
 
 **But** the temporary is just going to be thrown out anyway, as soon as the statement `Node m = plusOne(n)` is done
 

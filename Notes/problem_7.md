@@ -1,4 +1,4 @@
-[Moves << ](./problem_6.md) | [**Home**](../README.md) | [>> Tampering](./problem_8.md) 
+[Thievery << ](./problem_6.md) | [**Home**](../README.md) | [>> Tampering](./problem_8.md)
 
 # Problem 7: I want a constant vector
 ## **2021-09-23**
