@@ -1,7 +1,7 @@
 [Linear Collections and Memory Management << ](./problem_4.md) | [**Home**](../README.md) | [>> Moves](./problem_6.md) 
 
 # Problem 5: The Copier is broken!
-## **2025-09-10**
+## **2025-09-16**
 
 ```C++
 Vector v;
@@ -19,8 +19,8 @@ This leads to more problems:
 
 
 For `Vector w = v;`
-- Constructs `w` as a copy of `v`
-- Invokes the **copy constructor**
+- Constructs `w` as a copy of `v`.
+- Invokes the **copy constructor**.
 
 ```C++
 struct Vector {
@@ -29,7 +29,7 @@ struct Vector {
 };
 ```
 
-If you want a deep copy, write your own copy constructor
+If you want a deep copy, write your own copy constructor.
 
 ```C++
 struct Node {  // Vector: exercise (easy), we doing for Node
@@ -43,8 +43,8 @@ struct Node {  // Vector: exercise (easy), we doing for Node
 };
 ```
 
-## **2021-09-23**
 However, we are not done with copy. Say, we want to assign rather than creating a new object:
+
 ```C++
 Vector v;
 Vector w;
@@ -74,8 +74,10 @@ Consider:
 Node n {...};
 n = n;
 ```
+
+- Destroy's `n`'s data and then tries to copy it.
 - The `delete` deleted itself, and while assigning to itself is not common, assigning 2 aliases of the same object is common.
-- Must always ensure the operator = works in the case of self assignment
+- Must always ensure the operator `=` works in the case of self assignment.
 
 Another try
 ```C++
@@ -87,20 +89,21 @@ Node &Node::operator=(const Node &other) {
     return *this;
 }
 ```
-- This still is problematic as it only checks if the 2 things are exactly equal, but this `other` can be a sublist of `this`, but that's a discussion for encapsulation
+
+- This still is problematic as it only checks if the 2 things are exactly equal, but this `other` can be a sublist of `this`, but that's a discussion for encapsulation.
 
 **Alternative: copy-and-swap idiom**
 
 ```C++
-#include <utility>
+import <utility>; // for std::swap
 
 struct Node {
     ...
-    void swap(Node &other) {
+    void swap(Node &other) { // swap my fields with other's fields
         using std::swap;
         // the next two lines, other is a completely new object and hence we get a deep copy
-        swap(data, other.data);
-        swap(next, other.next);
+        swap(data, other.data); // swap my data with other's data
+        swap(next, other.next); // swap my next with other's next
     }
 
     Node &operator=(const Node &other) {
@@ -110,5 +113,6 @@ struct Node {
     }
 };
 ```
+
 ---
 [Linear Collections and Memory Management << ](./problem_4.md) | [**Home**](../README.md) | [>> Moves](./problem_6.md) 
