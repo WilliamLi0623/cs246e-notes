@@ -1,13 +1,15 @@
 [Thievery << ](./problem_6.md) | [**Home**](../README.md) | [>> Tampering](./problem_8.md)
 
-# Problem 7: I want a constant vector
-## **2021-09-23**
+# Problem 7: I don't like change
+## **2025-09-18**
 
 Say we want to print a vector:
 
+The natural way in C++ is to overload the `<<` operator.
+
 ```C++
 ostream &operator <<(ostream &out, const Vector &v) {
-    for (size_t i = 0; i < v.size(), ++i) {
+    for (size_t i = 0; i < v.size(); ++i) {
         out << v.itemAt(i) << " ";
     }
     return out;

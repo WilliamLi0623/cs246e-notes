@@ -151,11 +151,11 @@ If you do define them, then replace copy operations whenever the arg is a tempor
 ### **Copy/Move Elision**
 
 ```C++
-vector makeAVector() {
+Vector makeAVector() {
     return vector{}; // Basic constructor
 }
 
-vector v = makeAVector(); // Move constructor? Copy constructor?
+Vector v = makeAVector(); // Move constructor? Copy constructor?
 ```
 
 Try in `g++`, just the basic constructor runs, not copy/move. This can be done by using `cout` in the copy/move constructors.
@@ -165,16 +165,16 @@ In some circumstances, the compiler is allowed to skip calling the copy/move con
 For C++17, many elision opportunities become mandatory.
 
 ```C++
-vector v = vector{};    // Formally a basic construction and a copy/move construction
-                        // vector{} is a basic constructor
+Vector v = Vector{};    // Formally a basic construction and a copy/move construction
+                        // Vector{} is a basic constructor
                         // Here though, the compiler is *required* to elide the copy/move
                         // So basic constructor here only 
 
-vector v = vector{vector{vector{}}};    // Still one basic constructor only
+Vector v = Vector{Vector{Vector{}}};    // Still one basic constructor only
 ```
 
 ``` C++
-void doSomething(vector v) {...};   // Pass-by-value - copy/move constructor
+void doSomething(Vector v) {...};   // Pass-by-value - copy/move constructor
 
 doSomething(makeAVector());
 ```
@@ -236,7 +236,7 @@ Before C++17, copy/move elision was optional. Now it is required since prvalues 
 Consider:
 
 ```C++
-vector f() {
+Vector f() {
     ...
     return makeAVector(); // prvalue, no temporary, no copy/move
 }
@@ -245,8 +245,8 @@ vector f() {
 Now consider:
 
 ```C++
-vector g() {
-    vector v = makeAVector(); // prvalue, no temporary, no copy/move
+Vector g() {
+    Vector v = makeAVector(); // prvalue, no temporary, no copy/move
     ...
     return v;                 // not a prvalue
 }
@@ -257,9 +257,9 @@ Could `v` be ellided? Yes - compiler would create `v` in the caller's stack fram
 Now consider:
 
 ```C++
-vector h() {
-    vector v = makeAVector(); // prvalue, no temporary, no copy/move
-    vecotor w = makeAVector(); // prvalue, no temporary, no copy/move
+Vector h() {
+    Vector v = makeAVector(); // prvalue, no temporary, no copy/move
+    Vector w = makeAVector(); // prvalue, no temporary, no copy/move
     ...
     if (...) return v;
     else return w;
