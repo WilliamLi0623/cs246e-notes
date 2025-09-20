@@ -53,7 +53,7 @@ On the heap:
 > Philosophy in C++: If you are not gonna use it, you shouldn't have to pay for it.
 
 - If you have an array of items, and u need to deallocate that array, you need to know how many items there were / how big the memory we need to get rid of. Therefore, when you declare that array, you need to store how much memory you used.
-- But in special case of allocating 1 object, not an array, then why should I pay for that extra cost of saying "hey this is an object of size 1". So instead, C++ said "I know how big one object is" and so the compiler has the option if you are allocating one object, to not store that extra size information because its known. Therefore, the ordinary delete would not looking for sizes because it knows it was deleting one thing. Hence, having a separate form of delete for single object allows for potential optimization where you don't have to worry about checking sizes.
+- But in special case of allocating 1 object, not an array, then why should I pay for that extra cost of saying "hey this is an object of size 1". So instead, C++ said "I know how big one object is" and so the compiler has the option if you are allocating one object, to not store that extra size information because its known. Therefore, the ordinary delete would not be looking for sizes because it knows it was deleting one thing. Hence, having a separate form of delete for single object allows for potential optimization where you don't have to worry about checking sizes.
 
 **Problem:** What if our array isn't big enough (when deleting)?
 
