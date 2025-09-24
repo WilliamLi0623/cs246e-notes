@@ -1,7 +1,7 @@
-[I want a constant vector <<](./problem_7.md) | [**Home**](../README.md) | [>> Efficient Iteration](./problem_9.md)
+[I Don't Like Change <<](./problem_7.md) | [**Home**](../README.md) | [>> Walk Faster](./problem_9.md)
 
 # Problem 8: Tampering
-## **2021-09-28**
+## **2025-09-18**
 
 ```C++
 vector v;
@@ -124,43 +124,49 @@ class list {
         Node *next; // ... methods
     };
 
-    Node *theList;
-    
+    Node *theList = nullptr;
+    size_t len = 0;
+
     public:
         list(): theList{nullptr} { }
         // we can deconstruct this iteratively: run a loop inside the list class, this is actually possible now
         ~list(): { delete theList; }
-        size_t size() const;
+        size_t size() {
+            return len;
+        }
 
         void push_front(int n) {
             theList = new Node{n, theList};
+            ++len;
         }
 
-        void pop_font() {
+        void pop_front() {
             if (theList) {
                 Node *tmp = theList;
                 theList = theList->next;
                 tmp->next = nullptr;
                 delete tmp;
+                --len;
             }
         }
 
         const int &operator[](size_t i) const {
             Node *cur = theList;
             for (size_t j = 0; j < i && cur; ++j, cur=cur->next);
-            return curr->data;
+            return cur->data;
         }
 
         int &operator[](size_t i) {
             Node *cur = theList;
             for (size_t j = 0; j < i && cur; ++j, cur=cur->next);
-            return curr->data;
+            return cur->data;
         }   
 };
 ```
-Client cannot manipulate the list directly
-- No access to next pointers
-- Invariant is maintained
+
+Client cannot manipulate the list directly:
+- No access to next pointers.
+- Invariant is maintained.
 
 ---
-[I want a constant vector <<](./problem_7.md) | [**Home**](../README.md) | [>> Efficient Iteration](./problem_9.md)
+[I Don't like Change <<](./problem_7.md) | [**Home**](../README.md) | [>> Walk Faster](./problem_9.md)
