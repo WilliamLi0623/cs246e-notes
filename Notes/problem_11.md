@@ -1,12 +1,12 @@
-[Staying in bounds << ](./problem_10.md) | [**Home**](../README.md) | [>> Better Initialization](./problem_12.md) 
+[Now You've Gone Too Far! << ](./problem_10.md) | [**Home**](../README.md) | [>> Better Initialization](./problem_12.md) 
 
 # Problem 11: I want a vector of chars
-## **2021-10-05**
+## **2025-09-25**
 
 Start over? No
 
 Introduce a major abstraction mechanism, **templates**
-- Generalize overtypes
+- Generalize over types
 
 #### Vector.h
 
