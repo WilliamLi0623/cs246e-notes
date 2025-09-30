@@ -1,7 +1,7 @@
 [Better Initialization << ](./problem_12.md) | [**Home**](../README.md) | [>> Less Copying](./problem_14.md) 
 
-# Problem 13: I want a vector of posns
-## **2021-10-05**
+# Problem 13: Actually ... I Want a Vector of Posns
+## **2025-09-30**
 
 ```C++
 struct Posn {
@@ -10,44 +10,45 @@ struct Posn {
 };
 
 int main() {
-    vector<Posn> v; // Won't compile, why not?
+    Vector<Posn>v; // Won't compile, why not?
 }
 ```
 
 Take a look at Vector's constructor:
 
 ```C++
-template<typename T> vector<T>::vector(): n{0}, cap{1}, theVector{new T[cap]} {}
+template<typename T> Vector<T>::Vector(): n{0}, cap{1}, theVector{new T[cap]} {}
 ```
+
 `T[cap]` creates an array of T objects. Which `T` objects will be stored in the array?
 - C++ always calls a constructor when creating an object.
-- Which constructor gets called? The default constructor
-- But `Posn` doesn't have one
+- Which constructor gets called? The default constructor.
+- But `Posn` doesn't have one.
 - Creating a default constructor just to make the compiler happy is not always good. Sometimes we need to make the struct not initialized. And now, essentially what we just did was to propagate this problem from compile time to run time, and this is not good.
 
-Need to separate memory allocation (Object creation step 1) from initialization (steps 2-4) (refer to [p4](./problem_4.md))
+Need to separate memory allocation (Object Creation Step 1) from initialization (Steps 2-4). (refer to [p4](./problem_4.md))
 
-**Allocation only:** `void* operator new(size_t)`
-- Allocates `size_t` bytes
-- No initialization
-- Returns `void*`
+**Allocation only:** `void* operator new(size_t n)`
+- Allocates `size_t` bytes.
+- No initialization.
+- Returns `void*`.
 
 **Note:** 
-- In C, `void*` implicity converts to any pointer type
-- In C++, the conversion requires a cast
+- In C, `void*` implicity converts to any pointer type.
+- In C++, the conversion requires a cast.
 
 **Initialization:** "Placement new"
-- `new (address) type`
-- Constructs a "type" object at "address"
+- `new (address) type`.
+- Constructs a "type" object at "address".
 - Does not allocate memory (memory should already be allocated at "address")
 
 ```C++
 template<typename T> class vector {
     // ...
     public:
-        vector(): n{0}, cap{1}, theVector{static_cast<T*>(operator new(sizeof(T)))} {}
-        vector(size_t n, T x = T{}): 
-            n{n}, cap{n}, theVector{static_cast<T*>(operator new(n *sizeof(T)))} {
+        Vector(): n{0}, cap{1}, theVector{static_cast<T*>(operator new(sizeof(T)))} {}
+        Vector(size_t n, T x = T{}):
+            n{n}, cap{n}, theVector{static_cast<T*>(operator new(n*sizeof(T)))} {
             
             for (size_t i = 0; i < n; ++ i)
                 new(theVector + i) T(x);
@@ -60,8 +61,7 @@ template<typename T> class vector {
 
         void pop_back() {
             if (n) {
-                theVector[n-1].~T() // Must explicitly invoke destructor
-                --n;
+                theVector[--n].~T(); // Must explicitly invoke destructor
             }
         }
         void destroy_items() {
@@ -70,18 +70,15 @@ template<typename T> class vector {
         }
         // another version of destroy_items:
         void clear() {
-            // doing --n here is kinda sus but I guess it's fine because we don't use n anymore
-            while (n) {
-                theVector[-- n].~T();
-            }
+            while (n) pop_back();
         }
-        ~vector() {
+        ~Vector() {
             // we can use clear() here
-            destroy_items();
+            clear();
             operator delete(theVector);
         }
 };
 ```
 
 ---
-[Better Initialization << ](./problem_12.md) | [**Home**](../README.md) | [>> Less Copying](./problem_14.md) 
+[Where Do I Even Start << ](./problem_12.md) | [**Home**](../README.md) | [>> Less Copying](./problem_14.md) 

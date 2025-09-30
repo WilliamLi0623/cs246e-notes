@@ -1,7 +1,7 @@
-[I want a vector of Posns <<](./problem_13.md) | [**Home**](../README.md) | [>> Memory management is hard](./problem_15.md)
+[I Want a Vector of Posns <<](./problem_13.md) | [**Home**](../README.md) | [>> Memory management is hard](./problem_15.md)
 
-# Problem 14: Less copying!
-## **2021-10-07**
+# Problem 14: Less Copying!
+## **2025-09-30**
 
 We need to make this work for all type `T` efficiently.
 
@@ -21,14 +21,14 @@ void push_back(T x) { // (1) If T is an object, how many times is T being copied
 ```
 
 If the arg is an lvalue:  
-- (1) is a copy constructor
-- (2) is a copy constructor
-- 2 copies, we want 1
+- (1) is a copy constructor.
+- (2) is a copy constructor.
+- 2 copies, we want 1.
 
 If the arg is an rvalue:
-- (1) is a move constructor
-- (2) is a copy constructor
-- 1 copy, we want 0
+- (1) is a move constructor.
+- (2) is a copy constructor.
+- 1 copy, we want 0.
 
 **fix:**
 ```C++
@@ -37,13 +37,15 @@ void push_back(T x) {
     new(theVector + (n++)) T(std::move(x));
 }
 ```
+
 Seems good so far:
-- **lvalue:** copy + move  
-- **rvalue:** move + move
+- **lvalue:** copy + move.
+- **rvalue:** move + move.
 
-But the issue is: what if `T` doesn't have a move constructor? It would make 2 copies. Can we make this so that it would work regardless of `T` having a move ctor or not?
+But the issue is: what if `T` doesn't have a move constructor? It would make 2 copies. Can we make this so that it would work regardless of `T` having a move constructor or not?
 
-**Better:** take `T` by reference
+**Better:** Take `T` by reference.
+
 ```C++
 // lvalue
 void push_back(const T &x) {    // No copy, no move
@@ -54,31 +56,34 @@ void push_back(const T &x) {    // No copy, no move
 // rvalue
 void push_back(T &&x) { // No copy, no move
     increaseCap();
-    new(theVector + (n++)) T(std::move(x)); // copy ctor will run if there is no move ctor
+    new(theVector + (n++)) T(std::move(x)); // copy constructor will run if there is no move constructor
 }
 ```    
 
-- **lvalue:** 1 copy  
-- **rvalue:** 1 move
+- **lvalue:** 1 copy.
+- **rvalue:** 1 move.
 
-If no move constructor: 1 copy
+If no move constructor: 1 copy.
 
 Now consider:
+
 ```C++
 Vector<Posn> v;
 // What could go wrong????
 v.push_back(Posn {3, 4});
 ```
 
-1. Constructor call to create the Posn object
-1. Copy or move constructor into the vector (depending on whether Posn has a move constructor)
-1. Destructor call on the temporary object
+1. Constructor call to create the `Posn` object in `push_back`'s frame.
+1. Copy or move constructor into the `Vector` (depending on whether `Posn` has a move constructor).
+1. Destructor call on the original created object.
 
-Having ctor and then dtor, they cancel out, sounds like a waste.
+Having constructor and then destructor, they cancel out, sounds like a waste.
 
-Could eliminate (1) and (3) if we could get vector to create the object instead of the client
-- Pass constructor args to the vector and not the actual object
+Could eliminate (1) and (3) if we could get `Vector` to create the object instead of the client.
+- Pass constructor arguments to the vector and not the actual object.
 - How? Soon, but first...
+
+## **2025-10-01**
 
 ### **A note on template functions**
 
