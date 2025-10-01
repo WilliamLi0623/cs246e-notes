@@ -85,15 +85,15 @@ Could eliminate (1) and (3) if we could get `Vector` to create the object instea
 
 ## **2025-10-01**
 
-### **A note on template functions**
+### **A Note on Template Functions**
 
 Consider: `std::swap` seems to work on all types
 
 **Implementation:**
+
 ```C++
-// Without std::move, it would be good c++98, not so good c++11
 template<typename T> void swap(T &a, T &b) {
-    T tmp{std::move(a)}
+    T tmp{std::move(a)};
     a = std::move(b);
     b = std::move(tmp);
 }
@@ -105,25 +105,21 @@ int y = 2;
 swap(x, y)  // Equiv swap<int>(x, y);
 ```
 
-Don't have to say `swap<int>`, C++ can deduce this from the types of `x` and `y`
+As with template classes, the type argument `<int>` can be omitted if `C++` can deduce it from the types of the arguments.
 
-In general, only have to say `f<T>(...)` if `T` cannot be deduced from the args
+### Back to Vector passing constructor arguments
 
-Type deduction for template args follows the same rules as type deduction for `auto`
-
-### Back to Vector passing constructor args
-
-- We don't know what types constructor args should have
-- `T` could be any class, could have several constructors
+- We don't know what types constructor arguments should have.
+- `T` could be any class, could have several constructors.
 
 Idea - member template function (like `swap`, it could take anything)
 
-**2nd Problem:** how many constructor args?
+**2nd Problem:** How many constructor arguments?
 
 **Solution:** _variadic templates_ (similar to Racket macros)
 
 ```C++
-template<typename T> class vector {
+template<typename T> class Vector {
     // ...
     public:
     // ...
@@ -135,12 +131,12 @@ template<typename T> class vector {
 };
 ```
 
-In this case, `...` in template actually represents a variable amount of arguments
-- `Args` is a _sequence_ of type vars denoting the type of the actual args of `emplace_back`  
-- `args` is a _sequence_ of program vars denoting the actual args of `emplace_back`
+In this case, `...` in template actually represents a variable amount of arguments.
+- `Args` is a _sequence_ of type vars denoting the types of the actual args of `emplace_back`.
+- `args` is a _sequence_ of program vars denoting the actual args of `emplace_back`.
 
 ```C++
-vector<Posn> v;
+Vector<Posn> v;
 v.emplace_back(3, 4);
 ``` 
 
@@ -153,15 +149,15 @@ template<typename... Args> void emplace_back(Args&&... args) {
     new(theVector + (n++)) T (args...);
 }
 ```
-**Note:** It looks like we are taking rvalue ref, but this is **NOT TRUE**
+**Note:** It looks like we are taking rvalue ref, but this is **NOT TRUE**.
 
-Special rules here: `Args&&` is a **universal reference** (officially: **forwarding reference**)
+Special rules here: `Args&&` is a **universal reference** (officially: **forwarding reference**).
 - Can point to an lvalue or an rvalue.
-- When is a reference universal? Must have the form `T&&`, where `T` is the type arg being deduced for the current **template function call**.
+- When is a reference universal? Must have the form `T&&`, where `T` is the type being deduced for the current **template function call**.
 
 Ex.
 ```C++
-template<typename T> class c {
+template<typename T> class C {
     public:
         template<typename U> void g(U&& x); // Universal
         template<typename U> void h(const U&& x);   // Not universal (because of const)
@@ -178,7 +174,7 @@ void f(C&& x) { // rvalue reference - x points to an rvalue, but x itself is an 
 }
 ```
 
-If you want to preserve the fact that `x` is an rvalue reference, so that a "moving" version of `g` is called (if it exists):
+If you want to preserve the fact that `x` refers to an rvalue, so that a "moving" version of `g` is called (if it exists):
 
 ```C++
 void f(C&& x) {
@@ -196,9 +192,9 @@ template<typename... Args> void emplace_back(Args&&... args) {
 }
 ```
 
-`std::forward` calls `std::move` if its argument is an rvalue reference, else does nothing
+`std::forward` calls `std::move` if its argument is an rvalue reference, else does nothing,
 
-Now `args` is passed to `T`'s ctor with rvalue/lvalue information preserved. This technique is called **perfect forwarding**.
+Now `args` is passed to `T`'s constructor with lvalue/rvalue information preserved. This technique is called **perfect forwarding**.
 
 ---
-[I want a vector of Posns <<](./problem_13.md) | [**Home**](../README.md) | [>> Memory management is hard](./problem_15.md)
+[I Want a Vector of Posns <<](./problem_13.md) | [**Home**](../README.md) | [>> Memory management is hard](./problem_15.md)
