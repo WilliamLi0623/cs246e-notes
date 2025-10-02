@@ -221,7 +221,7 @@ Student s {60, 70, 80};
 - Field by field
 - OK, but limited
 
-Better initializtion method: a constructor
+Better initialization method: a constructor.
 
 ```C++
 struct Student {
@@ -238,7 +238,7 @@ Student s {70, 80, 90};
 // Now calls the constructor with args 70, 80, 90
 ```
 
-**Note:** once the constructor is defined, the C style field-by-field initialization is no longer available
+**Note:** Once the constructor is defined, the C style field-by-field initialization is no longer available
 
 ## **2025-09-11**
 
@@ -264,10 +264,10 @@ delete p;
 **Advantages of constructors:**
 
 - Default parameters
-- Overloading, as long as signatures are different
+- Overloading, as long as signatures are different.
 - Sanity checks, making sure the initialization makes sense and if they don't, try to correct them somehow.
 
-ex.
+Ex.
 
 ```C++
 struct Student {
@@ -281,17 +281,17 @@ Student laura {70};  // 70, 0 , 0
 Student newKid; // 0, 0, 0
 ```
 
-**Note:** Every class comes with a **default constructor** (constructor that takes no arguments)
+**Note:** Every class comes with a **default constructor** (constructor that takes no arguments).
 
 - The default constructor will try to initialize any fields that are objects by calling their own constructor.
 
-ex.
+Ex.
 
 ```C++
 Node n;  // Default constructor, Node has an int and a pointer in which both are not objects, so default constructor does nothing in this case.
 ```
 
-This goes away if you write any constructor
+This goes away if you write any constructor.
 
 Ex.
 
@@ -310,7 +310,7 @@ Node n {3};  // GOOD
 Node n;  // BAD - no default constructor, won't compile
 ```
 
-The ctor now can accept either 1 or 2 arguments, but not 0 because it's not the default.
+The constructor now can accept either 1 or 2 arguments, but not 0 because it's not the default.
 
 The first two are equivalent:
 
