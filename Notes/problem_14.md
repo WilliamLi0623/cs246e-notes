@@ -1,4 +1,4 @@
-[I Want a Vector of Posns <<](./problem_13.md) | [**Home**](../README.md) | [>> Memory management is hard](./problem_15.md)
+[I Want a Vector of Posns <<](./problem_13.md) | [**Home**](../README.md) | [>> Memory Management is Hard](./problem_15.md)
 
 # Problem 14: Less Copying!
 ## **2025-09-30**
@@ -196,5 +196,22 @@ template<typename... Args> void emplace_back(Args&&... args) {
 
 Now `args` is passed to `T`'s constructor with lvalue/rvalue information preserved. This technique is called **perfect forwarding**.
 
+Additional role on template functions.
+- Shorthand.
+- Auto notation.
+
+Ex. 
+```C++
+auto max(auto x, auto y){...}
+```
+
+Equivalent to
+
+```C++
+template <typename T, typename U> auto max(T x, U y) {...}
+```
+
+Just remember: When you see a function with a parameter type of `auto`, that function is a template function.
+
 ---
-[I Want a Vector of Posns <<](./problem_13.md) | [**Home**](../README.md) | [>> Memory management is hard](./problem_15.md)
+[I Want a Vector of Posns <<](./problem_13.md) | [**Home**](../README.md) | [>> Memory Management is Hard](./problem_15.md)
