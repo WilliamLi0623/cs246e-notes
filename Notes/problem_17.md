@@ -1,30 +1,36 @@
-[Is vector exception safe? << ](./problem_16.md) | [**Home**](../README.md) | [>> Abstraction over containers?](./problem_18.md) 
+[Is Vector Exception Safe? << ](./problem_16.md) | [**Home**](../README.md) | [>> Abstraction over containers?](./problem_18.md) 
 
-# Problem 17: Insert/Remove in the Middle
-## **2021-10-21**
+# Problem 17: The Middle
+## **2025-10-08**
 
-A method like `vector<T>::insert(size_t i, const T &x)` is easy to write.  
-But for the same `list<T>` requires an upfront traversal.
+If we want to insert an item into the middle of a collection - say by index.
 
-Using iterators can be good for both.
+For vectors:
+- Easy to find the place to insert.
+- Shuffling cost (unavoidable).
+
+For lists:
+- Finding the insertion point is linear search.
+- No shuffling cost. 
+
+Using iterators instead of indices should be about the same for vectors, faster for lists.
 
 ```C++
-template<typename T> class vector {
+template<typename T> class Vector {
     ...
     public:
-        iterator insert(iterator posn, const T&x) {
-            increaseCap();
+        iterator insert(iterator posn, const T &x) {
             ptrdiff_t offset = posn - begin(); // ptrdiff_t incase result is negative (in general)
-            iterator newPosn = begin() + offset;
-            new(static_cast<void*>(end()) T(std::move_if_noexcept(*(end() - 1)));
-            ++vb.n;
-            for (iterator it = end() - 1; it != Posn; --it) {
+            increaseCap();
+            posn = begin() + offset;
+            new(end()) T(std::move_if_noexcept(*(end() - 1)));
+            ++n;
+            for (iterator it = end() - 2; it != posn; --it) {
                 *it = std::move_if_noexcept(*(it - 1));
             }
-            *newPosn = x;
-            return newPosn;
+            *posn = x;
+            return posn;
         }
-    }
 };
 ```
 
@@ -49,16 +55,18 @@ and you insert at h
  it1      h  it2  
 ```
 
-it2 will now point at a different item.
+`it2` will now point at a different item.
 
-**Convention:** after a call to insert or erase, all iterators pointing after the point of insertion/erasure are considered invalid and should not be used.
-- Also, if a reallocation happens, _all_ iterators pointing into the vector become invalid.
+**Convention:** after a call to insert or erase, all iterators pointing at or after the point of insertion/erasure are considered invalid and should not be used.
+- Similarly, if a reallocation happens, _all_ iterators pointing into the vector become invalid.
 
 Exercises: 
 - **erase** - remove the item pointer to by an iterator, return an iterator to the point of erasure
 - **emplace** - like insert but takes constructor args
 
-BUT - that means there is a problem with `push_back`. If `increaseCap` successfully reallocates and placement new (constructor) throws, there vector is the same but the iterators were invalidated! (and we claimed that this method offer a strong guarantee, not so strong now isn't it???)
+BUT - that means there is a problem with `push_back`. If placement new (constructor) throws and there was a reallocation before that happened, the vector is the same but the iterators were invalidated!
+
+## **2025-10-09**
 
 This is really tricky. A general rule of thumb (in programming only, not during exams) is to deal with the hard stuffs first.
 - General technique for exception safety: Do the unsafe things first.

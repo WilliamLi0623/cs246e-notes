@@ -1,6 +1,6 @@
-[Memory Management is Hard <<](./problem_15.md) | [**Home**](../README.md) | [>> Insert/Remove in the middle](./problem_17.md)
+[Memory Management is Hard <<](./problem_15.md) | [**Home**](../README.md) | [>> The Middle](./problem_17.md)
 
-# Problem 16: Is vector exception safe?
+# Problem 16: Is Vector Exception Safe?
 ## **2025-10-07**
 
 Consider:
@@ -202,7 +202,7 @@ Any function you are sure will never throw or propogate an exception, you should
 
 ```C++
 template<typename T> void swap(T &a, T &b) {
-    T c (std::move(a))
+    T c {std::move(a)};
     a = std::move(b);
     b = std::move(c);
 }
@@ -211,13 +211,14 @@ template<typename T> void swap(T &a, T &b) {
 **Answer:** Only if T has a `noexcept` move constructor and a `noexcept` move assignment. How do we specify this?
 
 ```C++
-template<typname T> void swap(T &a, T &b) 
+template<typename T> void swap(T &a, T &b) 
     noexcept(std::is_nothrow_move_constructible<T>::value &&
              std::is_nothrow_move_assignable<T>::value) {
     ...
 }
-``` 
+```
+
 **Note:** `noexcept` = `noexcept(true)`
 
 ---
-[Memory management is hard <<](./problem_15.md) | [**Home**](../README.md) | [>> Insert/Remove in the middle](./problem_17.md)
+[Memory management is hard <<](./problem_15.md) | [**Home**](../README.md) | [>> The Middle](./problem_17.md)
