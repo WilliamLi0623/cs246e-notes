@@ -1,4 +1,4 @@
-[Is Vector Exception Safe? << ](./problem_16.md) | [**Home**](../README.md) | [>> Abstraction over containers?](./problem_18.md) 
+[Is Vector Exception Safe? << ](./problem_16.md) | [**Home**](../README.md) | [>> A Case Study in Strings](./problem_18.md)
 
 # Problem 17: The Middle
 ## **2025-10-08**
@@ -73,35 +73,36 @@ This is really tricky. A general rule of thumb (in programming only, not during 
   - If it fails, you have not done anything yet
   - If it succeeds, you are home free :D
 
-So let's write the new item before we transfer the old ones.
+Don't throw way the old array until you have placed the item.
+
 ```C++
-template<typename T> class vector {
+template<typename T> class Vector {
     // ...
 public:
-    void push_back(const T& x) {
+    void push_back(const T &x) {
         // we will increase size by hand rather than relying on our existing method
-        if (vb.n == vb.cap) {
-            vector_base<T> vb2{2 * cap};
-            new (vb2.v + vb.n) T(x); // if this fails, then vb2 is clean up automatically, which is good
-            vb2.n = vb.n + 1;
+        if (n == vb.cap) {
+            Vector_base<T> vb2{2 * vb.cap};
+            new (vb2.v + n) T(x); // if this fails, then vb2 is clean up automatically, which is good
             try {
-                uninitialized_copy_or_move(vb.v, vb.v + vb.n, vb2.v);
+                uninitialized_copy_or_move(vb2.v, vb2.v + n, vb.v);
+                size_t m = n;
                 clear();
-                std::swap (vb, vb2);
+                n = m + 1;
+                std::swap(vb, vb2);
             } catch (...) {
                 // if uninit... fails, we still have the new vb2 array, everything else was clean up, and so the only thing left we need to clean up now is the T(x) item we just put in
-                (vb2.v + vb2.n - 1)->~T();
+                vb2.v[n].~T();
                 throw;
             }
         } else {
-            new (vb.v + vb.n) T(x);
-            ++ vb.n; // we don't want to do this postfix, that would be too soon because new (addr) T(x) might fail, and we don't want to increase n if it fails 
+            // ... 
         }
     }
-}
+};
 ```
 - This offers strong guarantee
 - Exercise: go through this again and convince yourself that this is strong guarantee
 
 ---
-[Is vector exception safe? << ](./problem_16.md) | [**Home**](../README.md) | [>> Abstraction over containers?](./problem_18.md)
+[Is Vector Exception Safe? << ](./problem_16.md) | [**Home**](../README.md) | [>> A Case Study in Strings](./problem_18.md)
