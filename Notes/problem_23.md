@@ -1,26 +1,27 @@
 [The copier is broken (again) << ](./problem_22.md) | [**Home**](../README.md) | [>> A big unit on Object Oriented Design](./object_oriented_design.md)
 
-# Problem 23: I want to know what kind of `Book` I have
-## **2021-10-28**
+# Problem 25: What Kind of `Book` is This?
+## **2025-10-29**
 
-**For simplicity:** Assume the old book hiearchy
+**For simplicity:** Assume the old book hierarchy.
 
 - `Book`
     - `Text`
     - `Comic`
 
-- **C-style Casting**
-    - `(type) expr`
-    - Forces `expr` to be treated as type `type`
-    - Ex. ```C++
-            int *p;
-            int q = (int) p;
-          ```
-    - Very easy to be a source of error
-    - Very difficult to search for
+- **C-style Casting**:
+    - `(type) expr`.
+    - Forces `expr` to be treated as type `type`.
+    - Ex. 
+        ```C++
+        int *p;
+        int q = (int) p;
+        ```
+    - Very easy to be a source of error.
+    - Very difficult to search for.
 
-### **The `C++` casting operators - _4 operators_**
-- **`static_cast`:** for conversion <u>with</u> well-defined semantics
+### **The `C++` casting operators - _4 operators_**:
+- **`static_cast`:** For conversion **with** well-defined semantics.
     - Ex. 
         ```C++
         void f(int a); 
@@ -36,7 +37,7 @@
         ```
     - **Important**: You only do this if you're **100%** sure that pointer is pointing to a `Text`, otherwise it is not safe, undefined behaviour.
     - Telling the compiler "trust me, I know what I'm doing"
-- **`reinterpret_cast`:** for casts <u>without</u> well-defined semantics
+- **`reinterpret_cast`:** For casts **without** well-defined semantics.
     - Unsafe, implementation-dependent, "weird" casts (therefore unportable)
     - Ex. 
         ```C++

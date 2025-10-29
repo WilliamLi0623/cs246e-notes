@@ -1,7 +1,7 @@
 [Heterogeneous Data << ](./problem_19.md) | [**Home**](../README.md) | [>> I want a class with no objects](./problem_21.md)
 
-# Problem 20 - I'm leaking!
-## **2021-10-26**
+# Problem 22 - I'm Leaking!
+## **2025-10-28**
 
 ```C++
 class X {
@@ -15,7 +15,7 @@ class Y: public X {
         int *b;
     public:
         Y(int n, int m): X{n}, b{new int[m]} {}
-        ~Y() { delete[] b; }    // Note: Y's dtor will call X's dtor (step 3)
+        ~Y() { delete[] b; }    // Note: Y's destructor will call X's destructor (step 3)
 };
 
 X *px = new Y{3, 4};
@@ -35,16 +35,18 @@ class X {
         virtual ~X() { delete[] a; }   
 };
 ```
+
 Now there is no more leak. 
 
 We don't need (and maybe must not?) use `override` for this. The compiler is smart enough and from the doc, the derived destructor always overrides it.
 
-__Always__ make the destructor virtual in classes that are meant to be superclasses, even if the destructor does nothing.
-- You never know what the subclass' destructor might do, so you need to make sure its destructor gets called
-- Also always give your virtual dtor an implementation, even though it might be empty. It <u>will</u> get called by subclass dtor
+__Always__ make the destructor virtual in classes that are meant to be superclasses:
+- Even if the destructor does nothing.
+- You never know what the subclass's destructor might do, so you need to make sure the subclass's destructor gets called.
+- Also always give your virtual destructor an implementation, even though it might be empty. It will get called by the subclass destructor.
 
-If a class is not meant to be a superclass, then no need to incur the cost of virtual methods needlessly
-- Leave the destructor non-virtual
+If a class is not meant to be a superclass, then no need to incur the cost of virtual methods needlessly.
+- Leave the destructor non-virtual.
 
 ```C++
 class X final { // Cannot be subclassed
