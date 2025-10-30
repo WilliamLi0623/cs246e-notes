@@ -1,120 +1,124 @@
-[A fixed-size object allocator <<](./problem_37.md) | [**Home**](../README.md)
+[Total Control <<](./problem_35.md) | [**Home**](../README.md) | [>> A fixed-size object allocator](./problem_37.md)
 
-# Problem 38: I want a (tiny bit) smaller vector class
-## **2021-12-02** 
+# Problem 36: I want total control over vectors and lists
 
-Last class (but I'm watching this lec 3 weeks after end of school term :monkaS:)
+## **2021-11-30**
 
-**Currently:** `vector`/`vector_base` have an allocator field. Standard allocator is stateless (has no fields)
+How can we incorporate custom allocation into out containers.
 
-What is its size? 0? No - C++ does not allow 0 size types (messes things up, ex. pointer arithmetic).
+**Issue:** may want different allocators for different kinds of vectors.
 
-Every type has at least size 1.
+**Solution:** Make the allocator an argument to the template.
 
-Practically - compiler adds a dummy `char` to the allocator.
+Since most users won't write allocators, we'll need a default value.
 
-So having an allocator field makes the `vector` larger by a byte. Probably more, due to alignment (e.g, 8 bytes)
-
-Having an allocator field in the vector_base, may add another byte (or more due to alignment).
-
-To save this space, C++ provides the **empty base optimization (EBO)**.
-
-Under EBO, an empty base class does not have to occupy space in an object.
-
-So we can eliminate the space cost of an allocator by making it a base class. At the same time, make `vector_base` a base class of a `vector` (also done in STL)
-
-**Note:** From C++17 and onwards, this EBO applies to empty classes, so we don't incur any of these costs at all anymore (so this problem might cease to exist in the future and get replaced with something more interesting???)
+**Template Signature:**
 
 ```C++
-template <typename T, typename Alloc = allocator<T>>
-struct vector_base : private Alloc { // struct has default public inheritance
-    size_t n, cap;
-    T *v;
-    
-    // Since Alloc is a template arg, we don't know what it looks like
-    // so if we want to use inherited members, we need using to make
-    // them visible
-    using Alloc::allocate;
-    using Alloc::deallocate;
-    // etc.
-
-    vector_base(size_t n): n{0}, cap{n}, v{allocate(n)} {}
-    ~vector_base() { deallocate(v); }
-};
-
-template <typename T, typename Alloc = allocator<T>>
-class vector: vector_base<T, Alloc> {   // private inheritance - no is-a relation
-    using vector_base<T, Alloc>::n;
-    using vector_base<T, Alloc>::cap;
-    using vector_base<T, Alloc>::v;
-    
-    using Alloc::allocate;   // or say this->allocate 
-    using Alloc::deallocate; // this->deallocate
-public:
-    // ... Use n , cap, v instead of vb.n, vb.cap, vb.v
-};
+template<typename T, typename Alloc = allocator<T>> class vector { ... };
 ```
 
-`uninitialized_copy`, etc. - need to call construct/destroy
-- Simplest - let them take an allocator as a parameter
+Now write the interface for allocators and the allocator template, this is the bare minimum of allocator (it's generally hard to make good use of this):
 
 ```C++
-template <typename T, typename Alloc> {
-    void uninitialized_fill(T *start, T *finish, const T& x, Alloc a) {
-        // ...
-        a.construct(...)
-        // ...
-        a.destroy(...)
-        // ...
+template<typename T> struct allocator {
+    // no data members, stateless, has no fields
+    using value_type = T;
+
+    // trivial - no data members
+    allocator() noexcept {}
+
+    // trivial - no data members
+    allocator(const allocator &) noexcept {}
+
+    // assigning allocator of another type
+    template<typename U> allocator(const allocator<U> &) noexcept {}
+
+    // trivial
+    ~allocator() {}
+
+    // making life easier
+    using pointer = T*;
+    using reference = T&;
+    using const_pointer = const T*;
+    using const_reference = const T&;
+    using size_type = size_t;
+    using difference_type = ptrdiff_t;
+
+    pointer address(reference x) const noexcept { return &x; }
+    const_pointer address(reference x) const noexcept { return &x; }
+
+    pointer allocate(size_type n) { return ::operator new(n * sizeof(T)); }
+    void deallocate(pointer p, size_type n) { ::operator delete(p)); }
+
+    template<typename U, typename ...Args>
+    void construct(U *p, Args &&... args) {
+        // placement new here
+        ::new(static_cast<void*>(p)) U(forward<Args>(args)...);
     }
-}
+
+    template<typename U> void destroy(U *p) { p->~U(); }
+
+    size_type max_size() const noexcept {
+        return std::numeric_traits<size_type>::max(sizeof(value_type));
+    }
+};
 ```
-How can vector pass an allocator to these functions?
+
+If you want to write an allocator for an STL container, this is its interface (+ more stuff)
+
+**Note:** `operator new` takes a number of _bytes_, but `allocate` takes a number of _objects_.
+
+What happens if a vector is copied? Copy the allocator? What happens if you copy an allocator? Can 2 copies allocate/deallocate each other's memory?
+
+- C++03 allocators must be stateless - copying allocators is allowed and trivial
+- C++11 allocators can have state, can specify copying behaviour via allocator traits
+
+Adapting `vector`:
+
+- `vector` has a field `Alloc alloc`;
+- everywhere `vector` calls
+  - `operator new`, replace with `alloc.allocate`
+  - `placement new`, replace with `alloc.construct`
+  - `dtor` explicitly, replace with `alloc.destroy`
+  - `operator delete`, replace with `alloc.deallocate`
+  - takes an address, replace with `alloc.address`
+- Details: exercise
+
+Can we do the same with list?
+
 ```C++
-// Cast yourself to base class reference
-uninitialized_fill(v, v + n, x, static_cast<Alloc&>(*this));
+template<typename T, template Alloc = allocator<T>> class list { ... }
 ```
 
-**There is an issue though:**
-- `vector` doesn't know that `Alloc` is its grandparent
-    - `vector` (privately) inherits from `vector_base` and `vector_base` (privately) inherits from `Alloc`
-    -  `Alloc` is a parent of `vector_base`, but the only one who knows that is `vector_base`, because the inheritance is private 
-    -  `vector` knows that `vector_base` is its parent, but only `vector` knows that because private inheritance 
-    -  Now, since `vector` is not `vector_base` because private inheritance, `vector` does not know that `Alloc` is `vector_base`'s parent and as a result it does not know `Alloc` is its grandparent
-- So we are in a situation where the inheritance relationship is known to the child only but not the grandchildren. 
+Correct so far... but curiously, `Alloc` will never be used to allocate memory in a list.
 
-**Solution:**
-- This is one of the only use cases of **protected inheritance**
-- Kinda similar to private inheritance (fields become `protected` though), but the relationship is known to your children and yourself, so the children knows who their ancestors are 
-  ``` cpp
-  template <typename T, typename Alloc = allocator<T>>
-  struct vector_base : protected Alloc {...};
-  ```
-- Now, is-a relationship is knowns to `vector_base` and its subclasses
+Why not? lists are node-based, which means you don't want to actually allocate `T` objects; you want to allocate nodes (which contains `T` objects and pointers).
 
-Remaining details: exercise
+- but `Alloc` allocates `T` objects
 
-## Conclusions: How should you view what you have learnt?
+How do we get an allocator for nodes?
 
-This was not a course on C++
+- Every conforming allocator has a member template called `rebind` that gives the allocator type for another type:
 
-This was not a course on subtype-based polymorphism
+```C++
+template <typename T> struct allocator {
+public:
+    // ...
+    template <typename U> struct rebind {
+        using other = allocator<U>;
+    };
+};
+```
 
-These were means to an end, but not the end
+Within `list` - to create an allocator for nodes as a field of list:
 
-This was a course on **abstraction**. C++ and subtype polymorphism helped us accomplish that, but so did templates, exception safety, metaprogramming, etc.
+```C++
+typename Alloc::rebind<Node>::other alloc;
+```
 
-Programming is full of chaos - higher abstractions are often slower
-
-C++ provides mechanisms for creating high-level abstractions that perform well, because you have such precise control over implementation
-
-This ability to operate on several levels of abstractions is not common among programming languages (snake language)
-
-When you write libraries, you get to consider all these hard problems so that your clients can use your abstractions with as much ease as with any other languages
-
-`vector`, `string`, `unique_ptr`, `auto` - make managing memory and navigating types as easy as in any garbage-collected, newer language
-
-So, in conclusion: C++ is easy because it is hard!
+Then use as in vector. Details: exercise
 
 ---
-[A fixed-size object allocator <<](./problem_37.md) | [**Home**](../README.md)
+
+[Total Control <<](./problem_35.md) | [**Home**](../README.md) | [>> A fixed-size object allocator](./problem_37.md)

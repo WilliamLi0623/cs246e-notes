@@ -1,66 +1,66 @@
-[I'm leaking! << ](./problem_20.md) | [**Home**](../README.md) | [>> The copier is broken (again)](./problem_22.md)
+[Heterogeneous Data << ](./problem_19.md) | [**Home**](../README.md) | [>> I want a class with no objects](./problem_21.md)
 
-# Problem 23 - If a Class Has No Objects
+# Problem 22 - I'm Leaking!
 ## **2025-10-28**
 
 ```C++
-class Student {
+class X {
+        int *a;
     public:
-        virtual float fees() const;
+        X(int n): a{new int[n]} {}
+        ~X() { delete[] a; }
 };
 
-class RegularStudent: public Student {
+class Y: public X {
+        int *b;
     public:
-        float fees() const override;    // Regular student fees
-}
-
-class CoopStudent: public Student {
-    public:
-        float fees() const override;    // Co-op student fees
-}
-```
-
-What should `Student::fees` do?
-
-Don't know - every `Student` should either be `RegularStudent` or `CoopStudent`.
-
-**Solution:** explicitly give `Student::fees` no implementation.
-
-```C++
-class Student {
-    public:
-        virtual float fees() const = 0; // must set it = 0, Stroustrup said 0 means there is no body
+        Y(int n, int m): X{n}, b{new int[m]} {}
+        ~Y() { delete[] b; }    // Note: Y's destructor will call X's destructor (step 3)
 };
+
+X *px = new Y{3, 4};
+delete px;  // Leaks
 ```
 
-`Student` is an **abstract class**  
-`fees()` is a **pure virtual method**
-
-- <details open>
-  <summary>Rant</summary>
+This calls `X`'s destructor, but not `Y`'s
+- Now, this problem sounds familiar, when we want to make this pointer pick the correct method based on the actual type, what do we do???
   
-  - In Java, there would be a `abstract` keyword, however this is not the case in C++, because C++ is an older language, other "newer" can add anything they want.
-  </details>
-
-Abstract classes cannot be instantiated:
+**Solution:** make the destructor _virtual_
 
 ```C++
-Student s;  // ERROR
-Student *s = new Student;   // ERROR
+class X {
+        // ...
+    public:
+        // ...
+        virtual ~X() { delete[] a; }   
+};
 ```
 
-Can point to instances of **concrete classes** (non-abstract classes):
+Now there is no more leak. 
+
+We don't need (and maybe must not?) use `override` for this. The compiler is smart enough and from the doc, the derived destructor always overrides it.
+
+__Always__ make the destructor virtual in classes that are meant to be superclasses:
+- Even if the destructor does nothing.
+- You never know what the subclass's destructor might do, so you need to make sure the subclass's destructor gets called.
+- Also always give your virtual destructor an implementation, even though it might be empty. It will get called by the subclass destructor.
+
+If a class is not meant to be a superclass, then no need to incur the cost of virtual methods needlessly.
+- Leave the destructor non-virtual.
 
 ```C++
-Student *s = new RegularStudent;
+class X final { // Cannot be subclassed
+    ...
+};
 ```
 
-Subclasses of abstract classes are also abstract, unless they implement every pure virtual method in the superclass.
+Like `override`, `final` is another contextual keyword (right before the brace).
 
-Abstract classes
-- Used to organize concrete classes.
-- Can contain common fields/methods and default implementation (not need to be overridden).
-- Can give partial implementation.
+Also from the doc ([cppreference](https://en.cppreference.com/w/cpp/language/virtual#:~:text=result%20to%20B*%20%7D-,Virtual%20destructor,type%20through%20pointers%20to%20base.)):
+> Moreover, if the destructor of the base class is not virtual, deleting a derived class object through a pointer to the base class is undefined behavior regardless of whether there are resources that would be leaked if the derived destructor is not invoked, unless the selected deallocation function is a destroying operator delete (since C++20).
+
+> A useful guideline is that the destructor of any base class must be public and virtual or protected and non-virtual, whenever delete expressions are involved, e.g. when implicitly used in `std::unique_ptr` (since C++11).
+
 
 ---
-[I'm leaking! << ](./problem_20.md) | [**Home**](../README.md) | [>> The copier is broken (again)](./problem_22.md)
+[Heterogeneous Data << ](./problem_19.md) | [**Home**](../README.md) | [>> I want a class with no objects](./problem_21.md)

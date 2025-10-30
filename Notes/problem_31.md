@@ -1,59 +1,82 @@
-[Resolving Method Overrides at Compile-Time <<](./problem_30.md) | [**Home**](../README.md) | [>> Logging](./problem_32.md)
+[I want to print the unprintable! <<](./problem_28.md) | [**Home**](../README.md) | [>> Resolving Method Overrides at Compile-Time](./problem_30.md)
 
-# Problem 31: Polymorphic Cloning
-**2021-11-25**
+# Problem 29: Collecting Stats
+## **2021-11-23**
+
+I want to know how many `Student`s I created.
 
 ```C++
-Book *pb = ...;
-Book *pb2 = // I want an exact copy of *pb;
+class Student {
+        int assns, mt, finals;
+        static int count;   // Associated with the class, not one per object
+    public:
+        Student(...) { ++count; }
+        static int getCount() { return count; } // static methods
+};
 ```
 
-Can't call constructor directly (we don't know what `*pb` is, ie. don't know which constructor to call).
+- `static` methods have no `this` parameter
+- Thus not really a method, more like scoped function
+- Moreover, the variable is not defined, when we include in headers, it would be declared over and over. Thus, we have to do the following:
 
-**Standard Solution:** virtual `clone` method - Prototype Pattern
+_`.cc`_
+```C++
+int Student::count = 0; // must define the variable
+```
+
+- Latter versions cleaned this up (>= 17)
+
+Now
 
 ```C++
-class Book {
+Student s1{...}, s2{...}, s3{...};
+
+std::cout << Student::getCount() << std::endl;
+```
+
+Now I want to count objects in other classes. How do we abstract the solution into reusable code.
+
+```C++
+template<typename T> struct Count {
+    static int count;
+    Count() { ++count; }
+    Count(const Count&) { ++count; }
+    Count(Count&&) { ++count; }
+    ~Count() { --count; }
+    static int getCount() { return count; }
+};
+
+template<typename T> int Count<T>::count = 0;
+```
+
+```C++
+class Student: Count<Student> {
+        int assns, mt, final;
+    public:
+        Student(...): ...
+        // accessors
+        using Count<Student>::getCount; // Make this function visible 
+}
+```
+
+**Private Inheritance**
+  - inherits `Count`'s implementation without creating an "is-a" relationship
+  - Members of  `Count` become private in `Student`
+
+Now we can easily add it to other classes:
+```C++
+class Book : Count<Book> {
     // ...
-public:
-    virtual Book* clone() { return new Book{*this}; }
+    public:
+        using Count<Book>::getCount;
 };
-
-class Text: public Book {
-    // ...
-public:
-    Text* clone() override { return new Text{*this}; }
-};
-
-// Comic - similar
-```
-- Having different return type is fine (i.e, different signature) since `Text` and `Comic` would still be a subclass of `Book`.
-
-Boilerplate code - can we reuse it?
-
-Works better with an abstract base class:
-
-```C++
-class AbstractBook {
-public:
-    virtual AbstractBook *clone() = 0;
-    virtual ~AbstractBook();
-};
-
-template<typename T> class Book_cloneable : public AbstractBook {
-public:
-    T* clone() override { return new T{static_cast<T&>(*this)}; } // crtp
-};
-
-class Book : public Book_cloneable<Book> {};
-class Text : public Book_cloneable<Text> {};
-class Comic : public Book_cloneable<Comic> {};
 ```
 
-Looks good, this works better with a flat hierarchy. However, this cloning method is not generic enough
-- It's tightly coupled to the `Book` hierarchy. If I want to write another class with cloning, I would need to rewrite all these again
-- Reason: `Book_cloneable` is inheriting from `AbstractBook`
-- Solution: use what we would learn in [problem 33](Notes/problem_33.md)
+Why is `Count` a template?
+- So that for each class `C`, `class C : Count<C>` creates a new unique, instantiation of `Count` for each `C`. This gives `C` its own counter vs. sharing one counter over all subclasses
+
+This technique (inheriting from a template specialized by yourself)
+- Looks weird, but happens enough to have its own name: **The Curiously Recurring Template Pattern (CRTP)**
 
 ---
-[Resolving Method Overrides at Compile-Time <<](./problem_30.md) | [**Home**](../README.md) | [>> Logging](./problem_32.md)
+[I want to print the unprintable! <<](./problem_28.md) | [**Home**](../README.md) | [>> Resolving Method Overrides at Compile-Time](./problem_30.md)

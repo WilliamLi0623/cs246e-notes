@@ -1,316 +1,223 @@
-[Generalize the Visitor pattern <<](./problem_26.md) | [**Home**](../README.md) | [>> I want to print the unprintable!](./problem_28.md)
+[Shared Ownership <<](./problem_24.md) | [**Home**](../README.md) | [>> Generalize the Visitor Pattern](./problem_26.md)
 
-# Problem 27: I want an even faster vector
-## **2021-11-18**
+# Problem 25: Abstraction over Iterators
+## **2021-11-16**
 
-In the good old days of C, you could copy an array (even an array of structs!) very quickly by calling a function `memcpy` (similar to `strcpy`, but for arbitrary memory, not just strings).
-
-`memcpy` was probably written in assembly, and was as fast as the machine could possibly be.
-
-Nowadays in C++, copies invoke copy constructors, which are costly function calls. I long for the good old days 😢
-
-_Good news!_
-
-In C++, a type is considered **POD (plain old data)** if it:
-- has a trivial default constructor (equiv. to `= default`)
-- is trivially copyable 
-  - big 5 all have default implementations
-- is standard layout
-    - no virtual methods or bases
-    - all members have the same visibility
-    - no reference members
-    - no fields in both base class & subclass, or in multiple base classes
-
-For POD types, semantics is compatible with C, and `memcpy` is safe to use.
-
-How can we use it? - Only safe to use if `T` is a POD type
-
-_One option:_
+I want to jump ahead `n` spots in my container.
 ```C++
-template<typename T> class vector {
-private:
-    size_t n, cap;
-    T *theVector;
-public:
+template<typename Iter> Iter advance(Iter it, size_t n);
+```
+
+How should we do it?
+```C++
+for (size_t i = 0 ; i < n ; ++ i) ++ it;
+return it;
+```
+But this is so damn slow (`O(n)` time), can't we say `it += n`?
+
+Depends:
+- For `vector`, yes (O(1) time)
+- For `list`, no (`+=` not supported, and if it was it'd still be in a loop)
+
+Related - Can we go backwards (`--`, `-=`)?
+- `vector`, yes
+- `list` no
+
+So all iterators support `!=`, `*`, `++`, but some iterators support other operations
+
+- `list::iterator` - called a **forward iterator**, can only go one step forward
+- `vector::iterator` - called a **random access iterator** can go anywhere (arbitrary pointer arithmetic)
+
+How can we write advance to use `+=` for random access iterators and a loop for forward iterators
+
+Since we have different kinds of iterators let's create a type hierarchy:
+
+```C++
+struct input_iterator_tag{};
+struct output_iterator_tag{};
+struct forward_iterator_tag: input_iterator_tag{};
+struct bidirectional_iterator_tag: input_iterator_tag{};
+struct random_access_iterator_tag: bidirectional_iterator_tag{};
+```
+These are called `tag`, a class or struct with no fields and an empty body. This technique is called **tag dispatching**, done until C++17, and replaced by **concepts** in C++20 (ref-link [here](https://internalpointers.com/post/writing-custom-iterators-modern-cpp))
+
+To associate each iterator class with a `tag`, could use inheritance:
+
+Ex.
+```C++
+class list {
     // ...
-    vector(const vector &other): 
-        theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
-        // value is true if T is pod, false otherwise
-        if (std::is_pod<T>::value) {
-            memcpy(theVector, other.theVector, n * sizeof(T));
-        } else {
-            // as before
-        }
+    public:
+        class iterator: public forward_iterator_tag {
+            // ...
+        };
+};
+```
+but this makes it hard to ask what kind of iterator we have (can't `dynamic_cast`, no `vtables`)
+- Doesn't work for iterators that aren't classes (eg. pointers)
+
+Instead make the `tag` a member:
+```C++
+class list {
+    // ...
+    public:
+        class iterator { 
+            // ...
+            public:
+                using iterator_category = forward_iterator_tag;
+                // typedef forward_iterator_tag iterator_category;
+        };
+};
+```
+
+**Convention:** every iterator class will define a type member called `iterator_category`.
+- Still doesn't work for iterators that aren't classes
+- But we aren't done yet
+
+Make a template that associates every iterator type with its category
+```C++
+template<typename It> struct iterator_traits {
+    using iterator_category = typename It::iterator_category;
+    // typedef typename It::iterator_category iterator_category;
+};
+```
+- Without `typename`, this wouldn't compile (same problem with problem 18) (until C++20).
+  - It needs that so that C++ knows `It::iterator_category` is a type.
+  - Remember compiler doesn't know anything about `It` at compile time yet.
+
+Consider 
+```C++
+template <typename T> void f() {
+    typename T::something x; // only makes sense if T::something is a type
+}
+```
+But 
+```C++
+template <typename T> void f() {
+    T::something* x; // is this pointer declaration, or is it multiplication? 
+    // can't tell until you know if T::something is a type or not
+}
+```
+- C++ always assume `T::something` is a value unless it is told otherwise.
+- So we need
+```C++
+template <typename T> void f() {
+    typename T::something x; 
+    typename T::something* y; 
+}
+```
+- Need to say `typename` whenever you refer to a member type that depends on a template param.
+  
+Back to our main discussion.
+
+```C++
+template<typename It> struct iterator_traits {
+    using iterator_category = typename It::iterator_category;
+    // typedef typename It::iterator_category iterator_category;
+};
+
+// Ex.
+iterator_traits<List<T>::iterator>::iterator_category // forward_iterator_tag
+```
+And then we can provide a specialized version for **pointers**:
+
+```C++
+template<typename T> struct iterator_traits<T*> {
+    using iterator_category = random_access_iterator_tag; // put the tag name directly here rather than through It::iterator_category, apparently because we don't have a class for pointers
+};
+```
+For any iterator type `T`, `iterator_traits<T>::iterator_category` resolves to the `tag` struct for `T` (including if `T` is a pointer).
+
+What do we do with this?
+
+Want:
+```C++
+template <typename Iter>
+Iter advance(Iter it, ptrdiff_t n) {
+    if (typeid(typename iterator_traits<Iter>::iterator_category) 
+        == typeid(random_access_iterator_tag)) {
+        return it += n;
+    } else {
+        // ...
     }
+
 }
 ```
-Works... But condition is evaluated at run-time, but the result is known at compile-time (compiler may or may not optimize)
+- Won't compile.
+- If the iterator is not random access, and doesn't have a `+=` operator, `it += n` will cause a compilation error, even though it will never be used.
+- Moreover, the choice of which implementation to use is being made at run-time, when the right choice is known at compile-time
 
-_Second option (no run-time cost):_
+To make a compile-time decision - overloading
+- Make a dummy parameter with type of the iterator `tag`.
 ```C++
-template<typename T> class vector {
-// ...
-public:
-    template<typename X = T>
-    vector(enable_if<std::is_pod<X>::value, const T&>::type other): 
-        theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
-            memcpy(theVector, other.theVector, n * sizeof(T));
-        }
+template <typename Iter>
+Iter doAdvance(Iter it, ptrdiff_t n, random_access_iterator_tag) {
+    return it += n;
+}
 
-    template<typename X = T>
-    vector(enable_if<!std::is_pod<X>::value, const T&>::type other):
-        theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
-            // original implementation
-        }
+template <typename Iter>
+Iter doAdvance(Iter it, ptrdiff_t n, bidirectional_iterator_tag) {
+    if (n > 0) for (ptrdiff_t i = 0 ; i < n ; ++ i) ++ it;
+    else if (n < 0) for (ptrdiff_t i = 0 ; i > n ; -- i) -- it;
+    return it;
+}
+
+template <typename Iter>
+Iter doAdvance(Iter it, ptrdiff_t n, forward_iterator_tag) {
+    if (n >= 0) {
+        for (ptrdiff_t i = 0; i < n; ++ i) ++ it;
+        return it;
+    }
+    throw SomeError{};
 }
 ```
-How does it work?
+Finally, create a wrapper function to select the right overload:
 ```C++
-template<bool b, typename> struct enable_if;
-template<typename T> struct enable_if<true, T> {
-    using type = T;
+template <typename Iter>
+Iter advance(Iter it, ptrdiff_t n) {
+    return doAdvance(it, n, typename iterator_traits<Iter>::iterator_category{});
+}
+```
+Now the compiler will select the fast `doAdvance` for random access iterators, the slow `doAdvance` for bidirectional iterators, and the throwing `doAdvance` for forward iterators.
+
+These choices made at **compile-time** - no runtime cost.
+
+Using templates to perform compile-time computation - called **template metaprogramming**
+
+C++ templates form a functional language that operates at the level of types.
+- Express conditions by overloading, repetition via recursive template instantiation.
+- Also turing complete
+  - There are template instantiation that don't terminate, because expressing arbitrary computations implies expressing non-terminating computations
+  - As a result, compiler usually put a limit on recursion depth
+
+Example:
+```c++
+template <int N> struct Fact {
+    static const int value = N * Fact<N - 1>::value;
 };
-```
-- Yea this brings back memories of lambda calc
-- If the boolean is false, it has no definition, does not exist!
 
-With metaprogramming, what you don't say is as important as what you do say.
-
-If `b` is `true`, `enable_if` defines a struct whose `type` member typedef is `T`. So if `std::is_pod<T>::value == true`, 
-- then `enable_if<std::is_pod<T>::value, const T&>::type => const T&` by substitution
-
-If `b` is `false`, the struct is declared but not defined. So `enable_if<b, T>` will not compile.
-
-So one of the two versions of the copy constructor won't compile (the one with the `false` condition).
-
-Then how is this a valid program?
-
-**C++ rule:** <u>SFINAE (Substitution Failure Is Not An Error)</u>
-
-In other words - if `t` is a type,
-```C++
-template<typename T> __ f(___) { ____ }
-```
-is a template function, and substituting `T = t` results in an invalid function, the compiler does _not_ signal an error - it just removes that instantiation from consideration during overload resolution.
-
-On the other hand, if _no_ version of the function is in scope and substitutes validly / to handle the overload call, that is an error.
-
-Question: why is this wrong (having no `template<typename X = T>` compared to the above)?
-```C++
-template<typename T> class vector {
-    // ...
-public:
-    vector(typename enable_if<std::is_pod<T>::value, const T&>::type other);
-    // ...
-    vector(typename enable_if<!std::is_pod<T>::value, const T&>::type other);
+template<> struct Fact<0> {
+    static const int value = 1;
 };
+
+int x = Fact<5>::value; // 120 - evaluated at compile-time!!!
 ```
-That is, why do we need the extra template out front? 
-
-Because SFINAE applies to template functions and these methods are ordinary functions (constructors), not templates.
-- They depend on `T`, but `T`'s value was determined when you decided what to put in the vector
-- If substituting `T = t` fails, it invalidates the entire `vector` class, not just the method
-
-So make a separate template, with a new arg `X`, which can be defaulted to `T`, and do `is_pod<X>`, not `is_pod<T>`. 
-
-... It compiles, but when we run it, it crashes
-
-**Why????? Hint:** If you put debug statements into both of these constructors, they don't print. Which means they did not run.
-
-**Ans:** We're getting the compiler-supplied copy constructor, which is doing shallow copies. Eventually leads to double free and there u go :yep:.
-
-These templates are not enough to suppress the auto-generated copy constructor. A non-templated match is always preferred to a templated one.
-
-What do we do about it?
-
-Could try: disabling the copy constructor
+But for compile-time computation of values, C++11/14 offer a more straightforward facility:
 ```C++
-template<typename T> class vector {
-// ...
-public:
-    vector(const vector &other) = delete;
+constexpr int fact(int n) {
+    if (n == 0) return 1;
+    else return n * fact(n - 1);
 }
 ```
-Not allowed, can't disable the copy constructor and then create another copy constructor.
+- `constexpr` functions
+    - evaluate this at compile-time if `n` is a compile-time constant
+    - else evaluate at runtime
 
-Solution that actually works: **overloading**
-```C++
-template<typename T> class vector {
-    // ...
-    // a dummy structure just give me a type so I can overload on
-    struct dummy{};
-public:
-    // create a copy ctor
-    // just gonna have it call my actual constructor I wanna use (the 2 ctors below)
-    // btw this is constructor delegation, if both ctor has body, then the other ctor's body would run first, and this current body will run after
-    vector(const vector &other): vector{other, dummy{}} {}
-
-    // Now we can do our SFINAE
-    template<typename X = T> 
-    vector(typename enable_if<std::is_pod<X>::value, const T&>::type other, dummy) { ... }
-
-    template<typename X = T> 
-    vector(typename enable_if<!std::is_pod<X>::value, const T&>::type other, dummy) { ... }
-};
-```
-- Overload the constructor with an unused `dummy` arg
-- Have the copy constructor delegate to the overloaded constructor
-- Copy constructor is inline, so no function call overhead
-- Most importantly, this works!
-
-Can write some "helper" definitions to make `is_pod` and `enable_if` easier to use (C++ 14)
-```C++
-// convention: if the name has _v, it would extract the value field
-template<typename T> constexpr bool is_pod_v = std::is_pod<T>::value
-// convention: if the name has _t, it would extract the type field
-template<bool b, typename T> using enable_if_t = typename enable_if<b, T>::type
-```
-- Standardized conventions since C++ 14
-
-Now slightly cleaner
-```C++
-template <typename T> class vector {
-    // ...
-    struct dummy{};
-public:
-    // ...
-    template<typename X = T> vector(enable_if_t<is_pod_v<X>, const T&> other, dummy);
-
-    template<typename X = T> vector(enable_if_t<!is_pod_v<X>, const T&> other, dummy);
-};
-```
-
-## Move / Forward implementation
-
-<u>Aside:</u> We now have enough machinery to implement `std::move` and `std::forward`.
-- _`std::move`_ - treat a lvalue as a rvalue (cast).
-- First attempt
-```C++
-template<typename T> T &&move(T & x) {
-    return static_cast<T &&>(x);
-}
-```
-
-Doesn't quite work, `T&&` is a universal reference, not necessarily an rvalue reference. If `x` was a lvalue reference, `T&&` is a lvalue reference.
-- Need to make sure `T` is not an lvalue reference
-    - If `T` is an lvalue reference, get rid of the reference
-    - Basically we get rid of all the ref to get the bare type with `std::remove_reference`.
-
-```C++
-template<typename T> inline typename std::remove_reference<T>::type&& move(T&& x) {
-    return static_cast<typename std::remove_reference<T>::type &&>(x);
-    // turns T&, T&& into T
-}
-```
-
-**Exercise:** write `remove_reference`
-
-**Q:** can we save typing and use `auto`? Ex.
-
-```C++
-template<typename T> auto move(T &&x) { ... }
-```
-
-**A:** No! By-value auto throws away reference and outer const
-- Recall that `auto x = y` gives x the same type as the **value** of y (i.e, the type of `y` as if it was copied)
-
-```C++
-int z;
-int &y = z;
-auto x = y; // x is an int
-
-const int &w = z;
-auto v = w; // int
-```
-
-By reference, `auto &&` is a universal reference, so the code from the question section works (it does compile), but not as we expected.
-
-But still... is there a way to do type deduction without losing ref and const?
-
-Need a type definition rule that doesn't discard references.
-
-The answer is yes, by using `decltype`. It produces the type its argument was declared to have.
-
-**Note**: The argument of `decltype` is never evaluated, only type-checked.
-
-```C++
-decltype(var)  // returns the declared type of the variable
-decltype(expr) // returns lvalue or rvalue, depending on whether the expr is an lvalue or rvalue
-
-int z;
-int &y = z;
-decltype(y) x = z;  // x is an int&, auto would only give you int
-x = 4;  // Affects z
-
-/* Path/Example 1 */
-auto z;
-x = 4;  // Does not affect z
-
-/* Path/Example 2 */
-decltype(z) s = z;  // s is an int
-s = 5; // Does not affect z
-
-/* Path/Example 3 */
-decltype((z)) r = z;    // r is an int&, since (z) is a ref, since () is an expression
-r = t;  // Does affect z
-
-decltype(auto) - perform type deduction, like auto, but use the decltype rules
-```
-
-Can we do type deduction using the `decltype` rules instead of the auto rules? 
-
-Yes - use `decltype(auto)`
-
-```C++
-template<typename T> decltype(auto) move(T &&x) {
-    return static_cast<std::remove_reference_t<T>&&>(x);
-}
-```
-
-- Let's try implementing `std::forward`
-_`std::forward`_
-```C++
-template<typename T> T&& forward(T &&x) {
-    return static_cast<T&&>(x);
-}
-```
-- Doesn't seem right - casting `x` to its own type.
-
-**Reasoning:**
-- If `x` is an lvalue, `T&&` is an lvalue reference
-- If `x` is an rvalue, `T&&` is an rvalue reference
-
-Doesn't work, `forward` is called on expressions that are lvalues, that may point at rvalues.
-
-```C++
-template<typename U> void f(U&& y) {
-    ... forward(y) ...  // y is an lvalue
-}
-```
-
-`forward(y)` is will _always_ yield an lvalue reference.
-
-In order to work, `forward` must know what type (including l/rvalue) was deduced for `y`, ie. needs to know `U`.
-
-So in principle, `forward<U>(y)` would work.
-
-**2 Problems:**
-- Supplying `T` means `T&&` is no longer universal
-- Want to prevent the user from omitting `<T>`
-
-**Instead:** separate lvalue/rvalue cases
-
-```C++
-template<typename T> 
-inline constexpr T&& forward(std::removed_reference_t<T>&x) noexcept {
-    return static_cast<T&&>(x);
-}
-
-template<typename T> 
-inline constexpr T&& forward(std::removed_reference_t<T>&&x) noexcept {
-    return static_cast<T&&>(x);
-}
-```
+Can we spam `constexpr` everywhere?
+- A `constexpr` function must be something that actually can be evaluated at compile-time
+  - Can't be virtual
+  - Can't mutate non-local variables
+  - Etc.
 
 ---
-[Generalize the Visitor pattern <<](./problem_26.md) | [**Home**](../README.md) | [>> I want to print the unprintable!](./problem_28.md)
+[Shared Ownership <<](./problem_24.md) | [**Home**](../README.md) | [>> Generalize the Visitor Pattern](./problem_26.md)

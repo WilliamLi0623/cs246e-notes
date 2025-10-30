@@ -1,66 +1,158 @@
-[Heterogeneous Data << ](./problem_19.md) | [**Home**](../README.md) | [>> I want a class with no objects](./problem_21.md)
+[A Case Study in Strings <<](./problem_18.md) | [**Home**](../README.md) | [>> Heterogeneous Data](./problem_20.md)
 
-# Problem 22 - I'm Leaking!
-## **2025-10-28**
+# Problem 19 - Abstraction Over Containers
+## **2025-10-21**
 
-```C++
-class X {
-        int *a;
-    public:
-        X(int n): a{new int[n]} {}
-        ~X() { delete[] a; }
-};
+Recall: `map` from Racket
 
-class Y: public X {
-        int *b;
-    public:
-        Y(int n, int m): X{n}, b{new int[m]} {}
-        ~Y() { delete[] b; }    // Note: Y's destructor will call X's destructor (step 3)
-};
-
-X *px = new Y{3, 4};
-delete px;  // Leaks
+```scheme
+(map f (list a b c)) -> (list (f a) (f b) (f c))
 ```
 
-This calls `X`'s destructor, but not `Y`'s
-- Now, this problem sounds familiar, when we want to make this pointer pick the correct method based on the actual type, what do we do???
+May want to do the same with vectors:
+
+```
++---+---+---+---+     +----+----+----+----+
+| a | b | c | d | ->  |f(a)|f(b)|f(c)|f(d)|
++---+---+---+---+     +----+----+----+----+
+
+      source                  target
+```
+
+Assume target has enough space to hold as much of source as we want to send.
+
+```C++
+template<typename T1, typename T2>
+void transform(const Vector<T1> &source, Vector<T2> &target, T2 (*f)(T1)) {
+    // reminds you of trampoline :)
+    auto it = target.begin();
+    for (auto &x: source) {
+        *it = f(x);
+        ++it;
+    }
+}
+```
+
+This is OK, but:
+- What if we want only part of the source?
+- What if we want to send the source to the middle of the target, not the beginning?
+
+More general: use iterators
+
+```C++
+template <typename T1, typename T2>
+void transform(Vector<T1>::iterator start, Vector<T1>::iterator finish, Vector<T2>::iterator target, T2 (*f)(T1)) {
+    while (start != finish) {
+        *target = f(*start);
+        ++start;
+        ++target;
+    }
+}
+```
+
+Ok, but:
+- What if I want to transform a list, I'll write the same code again.
+- What if I want to transform a list to a vector, or vice versa.
+
+Solution: Make the type variables stand for the iterators, not the contained elements. But then how do we indicate the type for `f`?
+
+```C++
+template<typename InIter, typename OutIter, typename Fn>
+void transform(InIter start, InIter finish, OutIter target, Fn f) {
+    while (start != finish) {
+        *target = f(*start);
+        ++start;
+        ++target;
+    }
+}
+```
+
+- Works over vector iterators, list iterators, or any kinds of iterators.
+- And now, it actually compiles.
+
+InIter/OutIter can be any types that support `++`, `*`, `!=`, including ordinary raw pointers.
+
+C++ will instantiate a template function with any type that has the operations the function is using on it.
+
+`Fn` can be any type that supports **function application**.
+
+```C++
+class Plus {
+        int n;
+    public:
+        Plus(int n): n{n} {}
+        int operator() (int m) { return n + m; } // function application operator
+};
+
+Plus p{5};
+
+std::cout << p(7);  // 12
+```
+
+- Here is an object that is acting like a function, we call them **function object**
+- Many people would call them *functor*, but Brad tends to avoid calling them like that, because that word has too many meanings in math and cs already, we don't want to overload it, it doesn't need another one
+
+But more interesting, we can do something like
+
+```C++
+transform(v.begin(), v.end(), w.begin(), Plus{1});
+```
+- This is cheap and quick and dirty of getting things done
   
-**Solution:** make the destructor _virtual_
+Now we have an arbitrary plus one function for any types
+
+
+**Note**: 
+- One of the advantages of writing function objects instead of functions and then having classes that are callable, is that you can do things more easily with classes than functions, in particular, unlike functions, classes maintain **states**. 
+- The other way you can really maintain states in a function between multiple function calls is with a static variable, which is really tricky to use.
+- Function objects **maintain** states. They are really powerful things.
+
+OR we can do something like this in case you don't like objects:
 
 ```C++
-class X {
-        // ...
-    public:
-        // ...
-        virtual ~X() { delete[] a; }   
-};
+transform(v.begin(), v.end(), w.begin(), [](int n) { return n + 1 });
+                                         // ^ "lambda"
 ```
 
-Now there is no more leak. 
+Lambda anatomy:
 
-We don't need (and maybe must not?) use `override` for this. The compiler is smart enough and from the doc, the derived destructor always overrides it.
+```
+            param list
+               |
+lambda: [...](...) mutable? noexcept? { ... }
+          |                              |
+        capture list                    body
+```
 
-__Always__ make the destructor virtual in classes that are meant to be superclasses:
-- Even if the destructor does nothing.
-- You never know what the subclass's destructor might do, so you need to make sure the subclass's destructor gets called.
-- Also always give your virtual destructor an implementation, even though it might be empty. It will get called by the subclass destructor.
-
-If a class is not meant to be a superclass, then no need to incur the cost of virtual methods needlessly.
-- Leave the destructor non-virtual.
+Semantics: 
 
 ```C++
-class X final { // Cannot be subclassed
-    ...
-};
+void f(T1 a, T2 b) {
+    [a, &b](int x) { body }
+}
 ```
 
-Like `override`, `final` is another contextual keyword (right before the brace).
+In the C++ context, lambdas are really just objects. This would be translated to:
 
-Also from the doc ([cppreference](https://en.cppreference.com/w/cpp/language/virtual#:~:text=result%20to%20B*%20%7D-,Virtual%20destructor,type%20through%20pointers%20to%20base.)):
-> Moreover, if the destructor of the base class is not virtual, deleting a derived class object through a pointer to the base class is undefined behavior regardless of whether there are resources that would be leaked if the derived destructor is not invoked, unless the selected deallocation function is a destroying operator delete (since C++20).
+```C++
+void f (T1 a, T2 b) {
+    class ??? {     // ??? - anonymous class we can't access the name, would be a random thing compiler made up
+            T1 a; // any variables external to the lambda that you want to access here, list them in the capturing list
+            T2 &b;
+        public:
+            ???(T1 a, T2 &b): a{a}, b{b} {}
+            auto operator()(int x) const {
+                body;
+            }
+    }
+};
 
-> A useful guideline is that the destructor of any base class must be public and virtual or protected and non-virtual, whenever delete expressions are involved, e.g. when implicitly used in `std::unique_ptr` (since C++11).
+// Invocation would look like this
+???{a, b}.operator() (...);
+```
 
+If the lambda is declared mutable, then `operator()` is not const.
+- Capture list - provides access to variables in the enclosing scope.
 
 ---
-[Heterogeneous Data << ](./problem_19.md) | [**Home**](../README.md) | [>> I want a class with no objects](./problem_21.md)
+[A Case Study in Strings <<](./problem_18.md) | [**Home**](../README.md) | [>> Heterogeneous Data](./problem_20.md)

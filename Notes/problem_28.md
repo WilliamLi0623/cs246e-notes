@@ -1,75 +1,67 @@
-[I want an even faster vector <<](./problem_27.md) | [**Home**](../README.md) | [>> Collecting Stats](./problem_29.md)
+[Abstraction over Iterators <<](./problem_25.md) | [**Home**](../README.md) | [>> I want an even faster vector](./problem_27.md)
 
-# Problem 28: I want to print the unprintable!
-## **2021-11-23**
+# Problem 26: Generalize the Visitor Pattern
+## **2021-11-18**
 
-Recall [problem 7](Notes/../problem_7.md): 
-- Wanted to print a `vector`
-- `vector` used to hold int
-- now is a template
-
-Can do a templated `operator<<`
-- Will work if `T` is printable
-- won't compile otherwise
-
-What we want now:
-- print `T` if `T` is printable
-- print a default msg (e.g, "unprintable") in case `T` is not printable
-
-How might we do this?
-- two overloads for the two different behaviors
-
-```cpp
-struct true_type {};
-struct false_type {};
-
-template <typename T> void doOutput(const T& x, true_type) {
-    std::cout << x;
-}
-
-template <typename T> void doOutput(const T& x, false_type) {
-    std::cout << "unprintable" << std::endl;
-}
-```
-
-Top-level wrapper:
-
-```cpp
-template <typename T> void output (const T& x) {
-    doOutput(x, typename has_output<T>::type{});
-}
-```
-- Given `T`, should produce `true_type` if `T` supports output, false otherwise.
-- How do we do this???
-
-```cpp
-template <typename T> struct has_output {
-    using type = decltype(output_test<T>(0));
+Recall the visitor pattern:
+```C++
+class Book {
+    // ...
+public:
+    virtual void accept (BookVisitor &v) { v.visit(*this); }
 };
+
+class Test: public Book {
+    // ...
+};
+
+class BookVisitor {
+public: 
+    virtual void visit (Book& b) = 0;
+    virtual void visit (Text& t) = 0;
+    virtual void visit (Comic& c) = 0;
+}
 ```
-- Recall `decltype` only test the types of the expression, but not evaluating it (we don't want it to be evaluated anyway).
-- Now we overload function `output_test` such that a version returning `false_type` is always available, but the version returning `true_type` is a better match, but is only available if `T` supports output.
+- Can we automate this process of creating `visit`? I mean we have **template metaprogramming**
 
-```cpp
-// no need any implementation since we won't even run it anyway
-template <typename T> false_type output_test(...);
+Consider the following:
 
-template <typename T, typename = decltype(cout << T())> true_type output_test(int);
+_visitor.h_
+```C++
+// right now it would work no matter how many arguments I supply, we will specialize the template for the case when the list of arguments is not empty, so this will only trigger when this is empty
+template <typename...> class Visitor {
+public:
+    void visit();
+    virtual ~Visitor() {}
+};
+
+// this template has at least 1 known first item
+template <typename T, typename... Ts> class Visitor<T, Ts...> : public Visitor<Ts...> {
+public:
+    // here I inherit whatever visit my parent has, bring parents' visit to the scope
+    using Visitor<Ts...>::visit;
+    // and I add a visit method that takes a T&
+    // for the code above, if we unwind the recursion, we know at each level we would get a visit, until
+    // we reach the top level (which is the previous Visitor class), which we would only
+    // have a visit method that takes in nothing (trivial case)
+    virtual void visit(T& b) = 0;
+}
 ```
-- If `T` has output, then `typename` has type `ostream`, and otherwise it would be invalid (but still compile because SFINAE)
-- Putting `(int)` will always guarantee that it is a better match.
-- Ok well, what if `T` doesn't have a default ctor? That would be invalid even though `T` is printable (wrong result)?
-- Hack: we don't actually need a `T` object to perform the cout anyway (because it would never need to be constructed), so what's the other way we could make a `T` object? A function that return `T`. Do we have one? Doesn't matter, we can pretend we do.
+- You might be wondering why we need to bring the parent's `visit` methods into scope. Aren’t they already present due to the public superclass declaration? Well,
+  - If you overload a method that you are inheriting, so your parent gives you a method with one signature, and you give the same method with another signature, they are not considered equivalent. 
+  - In terms of overload resolution, the one in your scope will take priority over anything else. 
+  - So in order to make an inherited method that is an overload of a method that you have, operate at the same level of preference for overload resolution, you have to use a `using` to bring it into your scope.
+  - That's true whether you are writing templates, or you are writing ordinary classes.
 
-```cpp
-template <typename T> T&& declval();
-```
-- use refs here so that we don't assume that `T` has a copy/move ctor
-- Now we have
+Anyway, now, what we can do is:
 
-```cpp
-template <typename T, typename = decltype (cout << declval<T>())> true_type output_test(int);
+_BookVisitor.h_
+```C++
+class Book; class Text; class Comic; // forward declaration
+
+// this will generate the old BookVisitor
+using BookVisitor = Visitor<Book, Text, Comic>;
 ```
 
 ---
-[I want an even faster vector <<](./problem_27.md) | [**Home**](../README.md) | [>> Collecting Stats](./problem_29.md)
+[Abstraction over Iterators <<](./problem_25.md) | [**Home**](../README.md) | [>> I want an even faster vector](./problem_27.md)
