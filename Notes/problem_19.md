@@ -1,525 +1,158 @@
-[Abstraction over containers << ](./problem_18.md) | [**Home**](../README.md) | [>> I'm leaking!](./problem_20.md)
+[A Case Study in Strings <<](./problem_18.md) | [**Home**](../README.md) | [>> Heterogeneous Data](./problem_20.md)
 
-# Problem 20 - What's better than one iterator?
+# Problem 19 - Abstraction Over Containers
 ## **2025-10-21**
-- Two iterators!
 
-Consider `Vector<T>::erase`:
-- Takes an iterator to the item.
-- Removes the item.
-- Shuffle the following items backward.
-- Returns an iterator to the point of erasure.
+Recall: `map` from Racket
 
-O(n) cost for shuffling, fine.
+```scheme
+(map f (list a b c)) -> (list (f a) (f b) (f c))
+```
 
-But
-- What if you need to erase several consecutive items?
-- Call `erase` repeatedly? Pay that O(n) cost multiple times.
+May want to do the same with vectors:
 
-Faster - Shuffle the items up `k` positions (in one step each) where `k` is the number of items being erased.
+```
++---+---+---+---+     +----+----+----+----+
+| a | b | c | d | ->  |f(a)|f(b)|f(c)|f(d)|
++---+---+---+---+     +----+----+----+----+
 
-For thsi reason, we should make a `range` version of `erase`.
+      source                  target
+```
+
+Assume target has enough space to hold as much of source as we want to send.
 
 ```C++
-iterator Vector<T>::erase(iterator first, iterator last);
-```
-
-- Erases items in `[first,last)` and only pays the linear cost once.
-
-So maybe iterator isn't the right level abstraction.
-- Maybe the right abstraction encapsulates a pair of iterators - a range.
-
-Consider: Compusing multiple functions on some input.
-
-Ex.
-Filter and transform (say take all the odd numbers and square them).
-
-```C++
-auto add = [](int n) {return n%2 != 0; };
-auto sqr = [](int n){return n*n;};
-
-Vector v {...};
-Vector<int> w (v.size()), x(v.size());
-copyIf(v.begin(), v.end(), w.begin(), add);
-transform(w.begin(), w.end(), x.begin(), sqr);
-```
-
-2 Problems:
-1. The calls don't compose well. Need 2 separate function calls. No way to chain them.
-2. Needed to create a `Vector` for intermediate storage.
-These functions return an iterator to the beginning of the output range.
-
-What if instead we got a pair of iterators to the beginning and end of the output range.
-
-```C++
-template<typename T> class Range {
-    Iter start, finish;
-    public:
-    Iter begin() { return start; }
-    Iter end() { return finish; }
-};
-```
-
-And what if, instead, `copyIf` and `transform` took a `Range`, rather than a pair of iterators.
-
-```C++
-transform(copyIf(v, odd), sqr); // v is a `Range`. A range is anything with begin() and end() producing iterator types. So `Vector` is a range.
-```
-
-Functions now composable. What about intermediate storage?
-
-Who says we need it now?
-
-A range only needs to look like it's sitting on top of a container.
-
-Instead: Have the `Range` fetch items on demand.
-
-Filter - On fetch - Iterate through the `Range` until you find an item that satisfies the predicate. Then return it.
-
-Transform - On fetch - Fetch an item `x` from the `Range` below. Then return `f(x)`.
-
-These `Range` objects are called views. On-demand fetching, no intermediate storage.
-
-These exists in the C++20 standard library.
-
-```C++
-import <ranges>;
-vector v {1,2,3,4,5,6,7,8,9,10};
-auto x = std::ranges::views::transform(
-            std::ranges::views::filter(v, odd), sqr
-        );
-```
-
-It gets better: `filter`, `transform` take a second form:
-
-```C++
-filter(pred), transform(f) // Just supply the function, not the range
-```
-
-Become callable objects, parameterized by a range `R`.
-
-Ex.
-```C++
-filter(pred)(R), transform(f)(R)
-```
-
-So our example becomes:
-
-```C++
-transform(sqr)(filter(odd)(R))
-```
-
-Then operator `|` is defined (Normally the bitwize or operator) so that `R|A` is mapped to `A(R)`. So `B(A(R))` is `B(R|A)` and hence `R|A|B`.
-
-So we can write
-
-```C++
-auto x = v 
-            | std::ranges::views::filter(odd) 
-            | std::ranges::views::transform(sqr);
-```
-
-- Just like a Bash pipeline!
-
-# Problem 19 - Heterogenous Data
-## **2021-10-21**
-
-I want a mixture of types in my vector.
-
-Can't do this with a template.
-
-```C++
-vector<template<typename T> T> v;
-```
-- Not allowed - templates are compile time entities, they don't exist at runtime
-
-Ex. Fields of a struct
-
-```C++
-class MediaPlayer {
-    template<typename T> T nowPlaying;   // Can't do this
-};
-```
-
-Fallback to what's available to us in C:
-
-**unions**:
-```C
-union Media {Song s; Movie m};
-Media nowPlaying;
-```
-- Nice but you don't know what it might be exactly, you would need to store a member field, not so ideal
-
-**void\***
-```C
-void *nowPlaying;
-```
-- Even worse, can point to anything
-
-These are **not type-safe**.
-
-Items in a heterogeneous collection will **usually** have something in common, ex. provide a common interface.
-
-Can be viewed as different "kinds" of a more general "thing". So have a vector of "thing", or a field of type "thing".
-
-We'll use the standard CS 246 example because it's good:
-
-```C++
-class Book {    // Superclass or Base class
-        string title, author;
-        int length;
-    public:
-        Book(string title, string author, int length):
-            title{title},
-            author{author},
-            length{length} {}
-
-        bool isHeavy() const { return length > 100; }
-        string getTitle() const { return title; }
-        // etc.
-};
-```
-```
-BOOK
-+--------+
-| Title  |
-+--------+
-| Author |
-+--------+
-| Length |
-+--------+
-```
-- If you are not clear yet, we will be talking about **Inheritance**. 
-## **2021-10-26**
-Some books are special though
-```C++
-// Book would be super class / base class
-// why public? later
-class Text: public Book {   // Subclass or Derived class
-        string topic;   // No need to mention title, etc. because it comes from book
-    public:
-        Text(string title, string author, int length, string topic): 
-            // might be tempted to do title{title}..., but in MIL, you can only do that for **your** fields
-            Book{title, author, length}, 
-            topic{topic} {}
-
-        bool isHeavy() const { return length > 200; }
-        string getTopic() const { return topic; }
-};
-```
-- This code wouldn't compile yet but we'll get back to it later
-```C++
-TEXT
-+--------+
-| Title  |
-+--------+
-| Author |
-+--------+
-| Length |
-+--------+
-| Topic  |
-+--------+
-```
-```C++
-class Comic: public Book {
-        string hero;
-    public:
-        Comic(string title, string author, int length, string hero):
-            Book{title, author, length},
-            hero{hero} {}
-
-        bool isHeavy() const { return length > 50; }
-        string getHero() const { return hero; }
-};
-```
-```C++
-COMIC
-+--------+
-| Title  |
-+--------+
-| Author |
-+--------+
-| Length |
-+--------+
-| Hero   |
-+--------+
-```
-Subclasses inherit all members (fields & methods) from their superclass.  
-
-All three classes have `title`, `author`, and `length`, methods `getTitle`, `getAuthor`, `getLength`, `isHeavy`, ... except this doesn't work.
-
-`length` is a private method in `Book`, `Text` cannot access it.
-
-**2 options:**
-
-1. _Use protected_
-```C++
-class Book {
-        string title, author;
-    protected:  // Accessible only to this class and its subclasses
-        int length;
-    public:
-        ...
-};
-```
-
-2. _Call public method_
-```C++
-bool Text::isHeavy() const { return getLength() > 500; }
-```
-
-Recommended option is 2.
-- You have no control over what subclasses might do
-- Protected weakens encapsulation (cannot enforce invariants on protected fields)
-
-If you want subclasses to have priviledged access
-- Keep fields private
-- Provide protected `get_` and `set_` methods
-
-## Updated object creation/destruction protocols
-
-**Creation:**
-1. Space is allocated
-1. Superclass part is constructed
-1. Fields constructed in declaration order
-1. Constructor body runs
-
-**Destruction:**
-1. Destructor body runs
-1. Fields are destructed in reverse declaration order
-1. Superclass part destructed
-1. Space deallocated
-
-- Also recall that `new` and `delete` would be all step 1 to 4, while `operator new` would be step 1, then placement new `new (addr) obj` would be step 2-4, and samething for operator delete and invoking destructor.
-- Roughly speaking, `new = operator new + placement new`.
-
-Must revist everything we have learnt to see the effect of inheritance
-
-## Type compatibility
-`Text`s and `Comic`s are special kinds of `Book`s - should be usable in place of `Book`s
-```C++
-// this is valid
-Book b = Comic{___, ___, 75, ___};
-
-// method calls:
-b.isHeavy();
-``` 
-
-This is a light `Book`, but a heavy `Comic`. What does this return? -> Returns `false`
-
-If `b` is a `Comic`, why is it acting like a `Book`? -> Because it is a `Book` (declared as `Book`)!
-
-Consequence of stack-allocated objects:
-
-```C++
-// Set aside enough space to hold a book
-// Cannot hold it, not enough space for a comic
-       +----+                +----+
-       |    |                |    |
-       +----+                +----+
-Book b |    |  = Comic {...} |    |
-       +----+                +----+
-       |    |                |    |
-       +----+      <---      +----+
-                             |    |
-                             +----+
-```
-
-Keeps only the `Book` part - `Comic` part is "chopped off" - **slicing**
-- So it really is just a `Book` now
-- Therefore it is `Book::isHeavy` that runs
-
-Slicing happens even if superclass & subclass are the same size. This is a good thing because this behavior is consistent.
-
-Similarily, if you want to collect your books:
-
-```C++
-vector<Book> library;
-library.push_back(Comic {...}); 
-```
-only the `Book` part will be pushed - _not_ a heterogeneous collection.
-
-Also note:
-```C++
-void f(Book book[]); // raw array
-Comic comics[] = {...};
-f(comics);  // Will compile but never do this!
-```
-Troubles:
-- Array will be misaligned
-- Will not act like an array `Books`
-- Undefined behaviour!
-
-Slicing does not happen through pointers
-
-So if I do this instead:
-
-```C++
-Book *p = new Comic{___, ___, 75, ___};
-
-p
-+---+     +---+   
-|   | --> |   |  
-+---+     +---+
-          |   |
-          +---+
-          |   |
-          +---+
-          |   |
-          +---+
-```
-
-But `p->isHeavy();` is still false!
-
-**Rules:** the choice of which `isHeavy` is based on the type of the pointer (static type), not the object (dynamic type).
-
-Why? Because it's cheaper.
-
-**C++ Design Principle (again):** If you don't use it, you shouldn't have to pay for it.
-
-That is if you want something more expensive, you have to ask for it. To make `*p` act like a `Comic` when it is a `Comic`:
-
-```C++
-class Book {
-        // ...
-    public:
-        // ...
-        virtual bool isHeavy() const { ... }
-
-};
-
-class Comic {
-        // ...
-    public:
-        // ...
-        bool isHeavy() const override { ... }
-};
-
-// Assume isHeavy is virtual
-p->isHeavy();   // true!
-```
-
-`override` is a contextual keyword, is only a keyword in that specific location.
-- It tells C++ compiler: "Hey, this method is supposed to override something". You need to make sure everything matches too (signature, constness,...), otherwise this would not be override, it would be an overload, which might caused unexpected behaviours.
-- Tells the compiler: "Make sure there is a method in the super class with exactly the same signature, that is virtual, so that I can be sure that this can override properly.
-- Essentially telling the compiler to check if the override is correct.
-
-Now we can have a truly heterogeneous collection.
-
-```C++
-vector<Book*> library;
-library.push_back(new Book{...});
-library.push_back(new Comic{...});
-
-// Even better version
-vector<unique_ptr<Book>> library; 
-
-int howManyHeavy(const vector<Book*> &v) {
-    int count = 0;
-    for (auto &b: v) {
-        if (b->isHeavy()) ++count;
+template<typename T1, typename T2>
+void transform(const Vector<T1> &source, Vector<T2> &target, T2 (*f)(T1)) {
+    // reminds you of trampoline :)
+    auto it = target.begin();
+    for (auto &x: source) {
+        *it = f(x);
+        ++it;
     }
-
-    return count;
 }
-
-for (auto &b: library) delete b;    // Not necessary if library is a vector of unique_ptrs
 ```
 
-Correct version of `isHeavy` is always chosen, even though we don't know what's in the vector, and the items are probably not the same type.
+This is OK, but:
+- What if we want only part of the source?
+- What if we want to send the source to the middle of the target, not the beginning?
 
-This is called **polymorphism**.
+More general: use iterators
 
-How do virtual methods "work" and why are they more expensive? (though not _significantly_ more expensive)
-- Implementation dependent, but the following is most common:
-
-**Vtables** (only contain virtual methods)
 ```C++
-// These are vtables
-(1)
-+---------+
-| "Book"  |
-+---------+
-| isHeavy | -> Book::isHeavy // then call the body code here
-+---------+
-
-(2)
-+---------+
-| "Comic" |
-+---------+
-| isHeavy | -> Comic::isHeavy // then call the body code here
-+---------+
+template <typename T1, typename T2>
+void transform(Vector<T1>::iterator start, Vector<T1>::iterator finish, Vector<T2>::iterator target, T2 (*f)(T1)) {
+    while (start != finish) {
+        *target = f(*start);
+        ++start;
+        ++target;
+    }
+}
 ```
-So when we create two `Book`s `b1`, `b2`, and a `Comic b2`:
+
+Ok, but:
+- What if I want to transform a list, I'll write the same code again.
+- What if I want to transform a list to a vector, or vice versa.
+
+Solution: Make the type variables stand for the iterators, not the contained elements. But then how do we indicate the type for `f`?
+
 ```C++
-// actual object would look like this
-Book b1;
-
-+--------+
-| vptr   | -------> (1)
-+--------+
-| Title  |
-+--------+
-| Author |
-+--------+
-| Length |
-+--------+
-
-Book b2;
-
-+--------+
-| vptr   | -------> (1)
-+--------+
-| Title  |
-+--------+
-| Author |
-+--------+
-| Length |
-+--------+
-
-Comic b2;
-
-+--------+
-| vptr   | -------> (2)
-+--------+
-| Title  |
-+--------+
-| Author |
-+--------+
-| Length |
-+--------+
+template<typename InIter, typename OutIter, typename Fn>
+void transform(InIter start, InIter finish, OutIter target, Fn f) {
+    while (start != finish) {
+        *target = f(*start);
+        ++start;
+        ++target;
+    }
+}
 ```
-Non-virtual methods are just ordinary function calls.
 
-If there is at least one virtual method in the class:
-- Compiler creates a table of function pointers:
-    - One per class
-    - The vtable
-- Each object contains a pointer to its class' vtable 
-    - the `vptr`
-- Calling the virtual method => follow the `vptr` to the vtable, follow the function pointer to the correct function
+- Works over vector iterators, list iterators, or any kinds of iterators.
+- And now, it actually compiles.
 
-- `vptr` is often the "first" field
-    - So that a subclass object still looks like a superclass object, and it can ignore the rest of the fields.
-    - So the program knows where the `vptr` is
-    - If there are no virtual methods, `vptr` does not exist
-    - <details open> <summary>Rant:</summary>
+InIter/OutIter can be any types that support `++`, `*`, `!=`, including ordinary raw pointers.
+
+C++ will instantiate a template function with any type that has the operations the function is using on it.
+
+`Fn` can be any type that supports **function application**.
+
+```C++
+class Plus {
+        int n;
+    public:
+        Plus(int n): n{n} {}
+        int operator() (int m) { return n + m; } // function application operator
+};
+
+Plus p{5};
+
+std::cout << p(7);  // 12
+```
+
+- Here is an object that is acting like a function, we call them **function object**
+- Many people would call them *functor*, but Brad tends to avoid calling them like that, because that word has too many meanings in math and cs already, we don't want to overload it, it doesn't need another one
+
+But more interesting, we can do something like
+
+```C++
+transform(v.begin(), v.end(), w.begin(), Plus{1});
+```
+- This is cheap and quick and dirty of getting things done
   
-      - Number one:
-        - To make a subclass "looks like" a super class, we would chop off the latter fields, i.e, if we ignore the latter fields, it's literall just the super class.
-        - That would be hard to do if the `vptr` is the last, because then we would not be able to "ignore" the last field anymore. 
-        - If `vptr` is in the middle then you would have a hole in your object
-      - Number two:
-        - We need the `vptr` to know which object we're doing, and we currently don't know what kind of object we have
-        - That's part of the reason why we need a `vptr` to tell us that. Now, if `vptr` is not always at the same place, then in order to find the `vptr` we would need to know which object we currently have?????? Chicken-and-egg problem.
-      </details>
+Now we have an arbitrary plus one function for any types
 
-So virtual methods incur a cost in
-- time (Extra pointer derefs)
-- space (Each object gets a `vptr`)
 
-Note that, if a subclass does not **override** a virtual method of the superclass, then the pointer in the `vtable` would just point to the superclass's implementation
-- In the example above, if `Comic` does not override `Book`, then the `vtable` would just point to `Book::isHeavy`
+**Note**: 
+- One of the advantages of writing function objects instead of functions and then having classes that are callable, is that you can do things more easily with classes than functions, in particular, unlike functions, classes maintain **states**. 
+- The other way you can really maintain states in a function between multiple function calls is with a static variable, which is really tricky to use.
+- Function objects **maintain** states. They are really powerful things.
+
+OR we can do something like this in case you don't like objects:
+
+```C++
+transform(v.begin(), v.end(), w.begin(), [](int n) { return n + 1 });
+                                         // ^ "lambda"
+```
+
+Lambda anatomy:
+
+```
+            param list
+               |
+lambda: [...](...) mutable? noexcept? { ... }
+          |                              |
+        capture list                    body
+```
+
+Semantics: 
+
+```C++
+void f(T1 a, T2 b) {
+    [a, &b](int x) { body }
+}
+```
+
+In the C++ context, lambdas are really just objects. This would be translated to:
+
+```C++
+void f (T1 a, T2 b) {
+    class ??? {     // ??? - anonymous class we can't access the name, would be a random thing compiler made up
+            T1 a; // any variables external to the lambda that you want to access here, list them in the capturing list
+            T2 &b;
+        public:
+            ???(T1 a, T2 &b): a{a}, b{b} {}
+            auto operator()(int x) const {
+                body;
+            }
+    }
+};
+
+// Invocation would look like this
+???{a, b}.operator() (...);
+```
+
+If the lambda is declared mutable, then `operator()` is not const.
+- Capture list - provides access to variables in the enclosing scope.
 
 ---
-[Abstraction over containers << ](./problem_18.md) | [**Home**](../README.md) | [>> I'm leaking!](./problem_20.md)
+[A Case Study in Strings <<](./problem_18.md) | [**Home**](../README.md) | [>> Heterogeneous Data](./problem_20.md)

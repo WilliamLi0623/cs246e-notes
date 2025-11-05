@@ -1,12 +1,12 @@
 [I want to know what kind of Book I have << ](./problem_23.md) | [**Home**](../README.md) | [>> Shared Ownership](./problem_24.md)
 
 # A Big Unit on Object Oriented Design
-## **2021-11-02**
+## **2025-10-30**
 
 ## **System Modelling - UML**
 - Unified Modelling Language
-    - Make ideas easy to communicate
-    - Aid design discussions
+    - Make ideas easy to communicate.
+    - Aid design discussions.
 
 
 - `-` private
@@ -27,7 +27,7 @@
                                 +---------------------+
                                            ^
                                            |
-                                           | - (is-a relationship: inheritance)
+                                           | - (Is-a relationship: inheritance, specialization)
                                            |
                    +-----------------------+--------------------------+
                    |                                                  |
@@ -36,25 +36,25 @@
         +---------------------+                             +---------------------+
         |- topic: String      |                             |- hero: String       |
         +---------------------+                             +---------------------+
-        |+ getTopic: String   |                             |+ getTopic: String   |
+        |+ getTopic: String   |                             |+ getHero: String    |
         |+ isHeavy: Boolean   |                             |+ isHeavy: Boolean   | 
         +---------------------+                             +---------------------+ 
 </pre>
 
 <pre>
 +-----+       +-------+
-| Car | ◆--->| Motor  |
+| Car | ◆--->| Motor |
 +-----+     2 +-------+
 </pre>
 
-- "Owns-a" relationship (**composition**)
-- Means the motor is part of the car
-    - Does not have an independent existence
-    - Copy/destroy the car => copy/destroy the motor (deep copies)
-- Typical implementation - class composition, ie. object fields
-- `m` on arrow indicates the name of the field
+- "Owns-a" relationship (**composition**).
+- Means the motor is part of the car.
+    - Does not have an independent existence.
+    - Copy/destroy the car => copy/destroy the motor (deep copies).
+- Typical implementation - class composition, ie. object fields.
+- `m` on arrow indicates the name of the field.
     - `class Car { Motor m; };`
-- Number under arrow indicates how many fields
+- Number under arrow indicates how many fields.
 
 <pre>
 +------+  0..*  +-------+
@@ -62,11 +62,11 @@
 +------+        +-------+
 </pre>
 
-- "has-a" relationship (**aggregation**)
-- Duck has its own independent existence
-- Copy/destroy the pond =/=> copy/destroy the ducks
-- Typical implementation: pointer field
-- Ex. `class Pond { vector<Duck*> ducks; };` if you have more than one duck
+- "Has-a" relationship (**aggregation**).
+- Duck has its own independent existence.
+- Copy/destroy the pond =/=> copy/destroy the ducks.
+- Typical implementation: pointer field.
+- Ex. `class Pond { vector<Duck*> ducks; };` if you have more than one duck.
 
 The concept of _ownership_ is central to object oriented design in C++. 
 - You probably don't need to care about managing resources, but you need to decide who will.
@@ -82,68 +82,70 @@ If you need true shared ownership - we'll see later.
 ## **Measures of Design Quality**
 
 - **Coupling**
-    - How strongly different modules depend on each other
+    - How strongly different modules depend on each other.
     - <u>Lower is better</u>
     - **Low** (ascending order):
-        - Function calls with params/results of basic type 
-        - Function calls with array/struct params
-        - Modules affect each other's control flow
-        - Modules share global data 
+        - Function calls with params/results of basic type. 
+        - Function calls with array/struct params.
+        - Modules affect each other's control flow.
+        - Modules share global data.
     - **High:**
-        - Modules access each other's implementation (friends)
-        - Changes to one module affect other modules
-        - Harder to reuse individual modules
+        - Modules access each other's implementation (friends).
+        - Changes to one module affect other modules.
+        - Harder to reuse individual modules.
     - Example: method `whatItIs`, the one used `dynamic_cast` is tightly coupled with the `Book` class, and the structure of `Book` hierarchy.
-    - I can achieve perfect coupling by putting everything in one class, so there must be a balancing force (low cohesion)
+    - I can achieve perfect coupling by putting everything in one class, so there must be a balancing force (low cohesion).
 - **Cohesion**
-    - How closely are the elements of a module related to each other
+    - How closely are the elements of a module related to each other.
     - <u>Higher is better</u>
     - **Low:**
-        - Arbitrary grouping (eg. `<utility>`)
-        - Common theme, otherwise unrelated, maybe some common base code (eg. `<algorithm>`)
-        - Elements manipulate state over the lifetime of an object
-            - Ex. open/read/close files
-        - Elements pass data to each other
+        - Arbitrary grouping (eg. `<utility>`).
+        - Common theme, otherwise unrelated, maybe some common base code (eg. `<algorithm>`).
+        - Elements manipulate state over the lifetime of an object.
+            - Ex. open/read/close files.
+        - Elements pass data to each other.
     - **High:**
-        - elements operate to perform exactly one task
-    - Low cohesion means poorly organized code and harder to maintain/understand
+        - Elements operate to perform exactly one task.
+    - Low cohesion means poorly organized code and harder to maintain/understand.
     - I can achieve perfect cohesion by putting each method into its own class, but then they'll all depend on each other (high coupling).
-- **We want high cohesion and low coupling**
+- **We want high cohesion and low coupling**.
 
 ## **SOLID principles of OO Design**
-- **Single Responsibility Principle (SRP)**
-    - A class should only have one reason to change
-    - i.e. a class should do one thing, not several
-    - Any change to the problem spec requires a change to the program
-    - If changes to >= 2 different parts of the spec cause changes to the same class, SRP is violated
-    - Ex. Don't let you (main) classes print things
+- **Single Responsibility Principle (SRP)**.
+    - A class should only have one reason to change.    
+    - i.e. a class should do one thing, not several.
+    - Any change to the problem spec requires a change to the program.
+    - If changes to >= 2 different parts of the spec cause changes to the same class, SRP is violated.
+    - Ex. Don't let you (main) classes print things.
         - Consider: 
         ```C++
         class ChessBoard {
+            // ...
             std::cout << "Your move";
+            // ...
         };
         ```
-        - Bad design, inhibits code reuse
+        - Bad design, inhibits code reuse.
         - What if you want a version of your program that:
-            - Communicates over different streams (file/network)
+            - Communicates over different streams (file/network)?
             - Works in another language?
             - Uses graphics instead of text?
-        - Major changes to `ChessBoard` class, instead of reuse
+        - Major changes to `ChessBoard` class, instead of reuse.
         - Violates SRP, must change the class if there is any specification for:
-            - Game rules
-            - Strategy
-            - Interface
+            - Game rules.
+            - Strategy.
+            - Interface.
             - Etc.
-        - Low cohesion
-        - Split these responsibilities up
-        - One module (not main! can't reuse main) responsible for communication
-            - If a class wants to say something, do it via parameters/results/exceptions
-            - Pass info to communications object and let it do the talking
-        - On the other hand - specifications that are unlikely to change may not need their own class - avoid needless complexity
-            - Judgement call
+        - Low cohesion.
+        - Split these responsibilities up!
+        - One module (not main! can't reuse main) responsible for communication.
+            - If a class wants to say something, do it via parameters/results/exceptions.
+            - Pass to the communications object and let it do the talking.
+        - On the other hand - specifications that are unlikely to change may not need their own class - avoid needless complexity.
+            - Judgement call.
 - **Open/Closed Principle (OCP)**
-    - Classes/modules/functions/etc. should be open for extension + closed for modification
-    - Changes in a program's behaviour should happen by writing new code, not by changing old code
+    - Classes/modules/functions/etc. should be open for extension + closed for modification.
+    - Changes in a program's behaviour should happen by writing new code, not by changing old code.
     - Ex.
         ```
         +-----------+     +---------+
@@ -151,9 +153,9 @@ If you need true shared ownership - we'll see later.
         +-----------+     +---------+
 
         ```
-        - What if a carpenter buys a table saw
-        - This design is not open for extension (must change carpenter code)
-        - Solution: add an abstraction 
+        - What if a carpenter buys a table saw.
+        - This design is not open for extension (must change carpenter code).
+        - Solution: add an abstraction. 
         ```
         +-----------+     +-----+
         | Carpenter |◆--->| Saw |
@@ -171,34 +173,34 @@ If you need true shared ownership - we'll see later.
         ```C++
         int countHeavy(const vector<Book *> &v) {
             int count = 0;
-            for (auto &p: v)
-                if (p->heavy()) ++ count;
+            for (auto p: v)
+                if (p->isHeavy()) ++count;
             return count;
         }
         ```
-    - vs. `whatIsIt`, when we used dynamic casting (not closed for modification)
-    - **Note:** can't really be 100% closed, some changes may require source modification
-      - These should be taken with a bit of common sense
-      - Plan for the _most likely_ changes and make your code closed with respect to those changes
+    - vs. `whatIsIt`, when we used dynamic casting (not closed for modification).
+    - **Note:** Can't really be 100% closed, some changes may require source modification.
+      - These should be taken with a bit of common sense.
+      - Plan for the _most likely_ changes and make your code closed with respect to those changes.
 - **Liskov Substitution Principle (LSP)**
-    - Simply put: public inheritance must indicate an "IS-A" relationship
+    - Simply put: public inheritance must indicate an "IS-A" relationship.
     - But there's more to it: If `B` is a subtype (subclass) of `A`, then we should be able to use an object `b` of type `B` in any context that requires an object of type `A` <u> without affecting the correctness of the program (*) </u>
-    - C++'s inheritance rules already allow us to use subclass objects in place of superclass objects
-    - (\*) Very important point: a program should "not be able to tell" if it is using a superclass object or a subclass object 
-      - Note: arguably, `dynamic_cast` does violate LSP, depending on how you use it
-      - Formally: if an invariant `I` is true of class `A`, then it is true of class `B`
-      - If an invariant `I` is true of method `A::f`, and `B::f` overrides `A::f`, then `I` must hold for `B::f`
-      - If `A::f` has a precondition `P` and a postcondition `Q`, then `B::f` must have a precondition `P' <= P` and a post condition `Q' => Q`
+    - C++'s inheritance rules already allow us to use subclass objects in place of superclass objects.
+    - (\*) This is the important point. Informally: a program should "not be able to tell" if it is using a superclass object or a subclass object.
+      - Note: arguably, `dynamic_cast` does violate LSP, depending on how you use it.
+      - Formally: if an invariant `I` is true of class `A`, then it is true of class `B`.
+      - If an invariant `I` is true of method `A::f`, and `B::f` overrides `A::f`, then `I` must hold for `B::f`.
+      - If `A::f` has a precondition `P` and a postcondition `Q`, then `B::f` must have a precondition `P' <= P` and a post condition `Q' => Q`.
         ```
             P ===> Q
             |      ^
             V      |
             P'===> Q'
         ```
-      - If `A::f` and `B::f` behave differently, the difference in behaviour must fall within what is allowed by the program's correctness specification
+      - If `A::f` and `B::f` behave differently, the difference in behaviour must fall within what is allowed by the program's correctness specification.
     - Ex.
         1. **Contravariance Problem**
-            - Arises anytime you have a binary operator (ie. a method with an "other" parameter) of the same type as `*this`
+            - Arises anytime you have a binary operator (ie. a method with an "other" parameter) of the same type as `*this`.
                 ```C++
                 class Shape {
                     public:
@@ -210,26 +212,27 @@ If you need true shared ownership - we'll see later.
                         bool operator==(const Circle &other) const override; // (*)
                 }
                 ```
-            - (\*) Taking a `Circle` would violate LSP
-              - A `Circle` _is_ a `Shape`
-              - A `Shape` can be compared with _any_ other `Shape`
-              - Therefore a `Circle` can be compared with _any_ other `Shape`
-              - C++ will flag this problem with a compiler error
-              - This is an OOP thing, not just a programming language thing, if your language does not force this, that language is flawed
+            - (\*) Taking a `Circle` would violate LSP.
+              - A `Circle` _is_ a `Shape`.
+              - A `Shape` can be compared with _any_ other `Shape`.
+              - Therefore a `Circle` can be compared with _any_ other `Shape`.
+              - C++ will flag this problem with a compiler error.
+              - This is an OOP thing, not just a programming language thing, if your language does not force this, that language is flawed.
               - **FIX:**
                   ```C++
+                  import <typeinfo>;
                   bool Circle::operator==(const Shape &other) const {
                       if (typeid(other) != typeid(Circle)) return false;
                       const Circle &cOther = static_cast<const Circle&>(other);
                       // Compare fields of other with fields of *this;
                   }
                   ```
-              - `dynamic_cast` vs `typeid`
-                - `dynamic_cast<Circle &>(other);`: asking a slightly different question: is it possible to cast `other` to a `Circle`/is `other` a `Circle` or a subclass of `Circle`
+              - `dynamic_cast` vs `typeid`:
+                - `dynamic_cast<Circle &>(other);`: asking a slightly different question: is it possible to cast `other` to a `Circle`/is `other` a `Circle` or a subclass of `Circle`.
                 - `typeid(other) == typeid(Circle)`: is `other` precisely a `Circle`?
-                - `typeid` returns an object of type `type_info`
+                - `typeid` returns an object of type `type_info`.
         1. Is a square a rectangle?
-            - A square has all the properties of a rectangle
+            - A square has all the properties of a rectangle.
                 ```C++
                 class Rectangle {
                     private:
@@ -267,8 +270,8 @@ If you need true shared ownership - we'll see later.
                 Square s{1};
                 f(s);   // 400 instead of 200
                 ```
-            - `Rectangle` has the property that their length and width can vary independently; `Square` does not. So this violates LSP
-            - On the other hand, an immutable `Square` could substitute for an immutable `Rectangle`
+            - `Rectangle` has the property that their length and width can vary independently; `Square` does not. So this violates LSP.
+            - On the other hand, an immutable `Square` could substitute for an immutable `Rectangle`.
             - What can be done:
             <pre>
                                                   +-------+
@@ -343,10 +346,10 @@ If you need true shared ownership - we'll see later.
             void drawShell() override { ... };
         };
         ```
-      - Subclasses cannot control the steps of drawing a turtle, not the drawing of head + feet
-      - Can only control the drawing of a shell (called the **Template Method Pattern**)
+      - Subclasses cannot control the steps of drawing a turtle, not the drawing of head + feet.
+      - Can only control the drawing of a shell (called the **Template Method Pattern**).
     - Extension: **Non-Virtual Interface (NVI) Idiom**
-      - If you think private pure virtual methods are weird, in fact, public pure virtual methods are weird, and private ones are normal
+      - If you think private pure virtual methods are weird, in fact, public pure virtual methods are weird, and private ones are normal.
       - `public virtual` methods are simultaneously:
         - Part of a class' interface
           - Pre/post conditions

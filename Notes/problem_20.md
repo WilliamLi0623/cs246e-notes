@@ -1,158 +1,125 @@
-[A Case Study in Strings <<](./problem_18.md) | [**Home**](../README.md) | [>> Heterogeneous Data](./problem_20.md)
+[Abstraction over containers << ](./problem_18.md) | [**Home**](../README.md) | [>> I'm leaking!](./problem_20.md)
 
-# Problem 19 - Abstraction Over Containers
+# Problem 20 - What's better than one iterator?
 ## **2025-10-21**
+- Two iterators!
 
-Recall: `map` from Racket
+Consider `Vector<T>::erase`:
+- Takes an iterator to the item.
+- Removes the item.
+- Shuffle the following items backward.
+- Returns an iterator to the point of erasure.
 
-```scheme
-(map f (list a b c)) -> (list (f a) (f b) (f c))
-```
+O(n) cost for shuffling, fine.
 
-May want to do the same with vectors:
+But
+- What if you need to erase several consecutive items?
+- Call `erase` repeatedly? Pay that O(n) cost multiple times.
 
-```
-+---+---+---+---+     +----+----+----+----+
-| a | b | c | d | ->  |f(a)|f(b)|f(c)|f(d)|
-+---+---+---+---+     +----+----+----+----+
+Faster - Shuffle the items up `k` positions (in one step each) where `k` is the number of items being erased.
 
-      source                  target
-```
-
-Assume target has enough space to hold as much of source as we want to send.
-
-```C++
-template<typename T1, typename T2>
-void transform(const Vector<T1> &source, Vector<T2> &target, T2 (*f)(T1)) {
-    // reminds you of trampoline :)
-    auto it = target.begin();
-    for (auto &x: source) {
-        *it = f(x);
-        ++it;
-    }
-}
-```
-
-This is OK, but:
-- What if we want only part of the source?
-- What if we want to send the source to the middle of the target, not the beginning?
-
-More general: use iterators
+For thsi reason, we should make a `range` version of `erase`.
 
 ```C++
-template <typename T1, typename T2>
-void transform(Vector<T1>::iterator start, Vector<T1>::iterator finish, Vector<T2>::iterator target, T2 (*f)(T1)) {
-    while (start != finish) {
-        *target = f(*start);
-        ++start;
-        ++target;
-    }
-}
+iterator Vector<T>::erase(iterator first, iterator last);
 ```
 
-Ok, but:
-- What if I want to transform a list, I'll write the same code again.
-- What if I want to transform a list to a vector, or vice versa.
+- Erases items in `[first,last)` and only pays the linear cost once.
 
-Solution: Make the type variables stand for the iterators, not the contained elements. But then how do we indicate the type for `f`?
+So maybe iterator isn't the right level abstraction.
+- Maybe the right abstraction encapsulates a pair of iterators - a range.
+
+Consider: Compusing multiple functions on some input.
+
+Ex.
+Filter and transform (say take all the odd numbers and square them).
 
 ```C++
-template<typename InIter, typename OutIter, typename Fn>
-void transform(InIter start, InIter finish, OutIter target, Fn f) {
-    while (start != finish) {
-        *target = f(*start);
-        ++start;
-        ++target;
-    }
-}
+auto add = [](int n) {return n%2 != 0; };
+auto sqr = [](int n){return n*n;};
+
+Vector v {...};
+Vector<int> w (v.size()), x(v.size());
+copyIf(v.begin(), v.end(), w.begin(), add);
+transform(w.begin(), w.end(), x.begin(), sqr);
 ```
 
-- Works over vector iterators, list iterators, or any kinds of iterators.
-- And now, it actually compiles.
+2 Problems:
+1. The calls don't compose well. Need 2 separate function calls. No way to chain them.
+2. Needed to create a `Vector` for intermediate storage.
+These functions return an iterator to the beginning of the output range.
 
-InIter/OutIter can be any types that support `++`, `*`, `!=`, including ordinary raw pointers.
-
-C++ will instantiate a template function with any type that has the operations the function is using on it.
-
-`Fn` can be any type that supports **function application**.
+What if instead we got a pair of iterators to the beginning and end of the output range.
 
 ```C++
-class Plus {
-        int n;
+template<typename T> class Range {
+    Iter start, finish;
     public:
-        Plus(int n): n{n} {}
-        int operator() (int m) { return n + m; } // function application operator
+    Iter begin() { return start; }
+    Iter end() { return finish; }
 };
-
-Plus p{5};
-
-std::cout << p(7);  // 12
 ```
 
-- Here is an object that is acting like a function, we call them **function object**
-- Many people would call them *functor*, but Brad tends to avoid calling them like that, because that word has too many meanings in math and cs already, we don't want to overload it, it doesn't need another one
-
-But more interesting, we can do something like
+And what if, instead, `copyIf` and `transform` took a `Range`, rather than a pair of iterators.
 
 ```C++
-transform(v.begin(), v.end(), w.begin(), Plus{1});
+transform(copyIf(v, odd), sqr); // v is a `Range`. A range is anything with begin() and end() producing iterator types. So `Vector` is a range.
 ```
-- This is cheap and quick and dirty of getting things done
-  
-Now we have an arbitrary plus one function for any types
 
+Functions now composable. What about intermediate storage?
 
-**Note**: 
-- One of the advantages of writing function objects instead of functions and then having classes that are callable, is that you can do things more easily with classes than functions, in particular, unlike functions, classes maintain **states**. 
-- The other way you can really maintain states in a function between multiple function calls is with a static variable, which is really tricky to use.
-- Function objects **maintain** states. They are really powerful things.
+Who says we need it now?
 
-OR we can do something like this in case you don't like objects:
+A range only needs to look like it's sitting on top of a container.
+
+Instead: Have the `Range` fetch items on demand.
+
+Filter - On fetch - Iterate through the `Range` until you find an item that satisfies the predicate. Then return it.
+
+Transform - On fetch - Fetch an item `x` from the `Range` below. Then return `f(x)`.
+
+These `Range` objects are called views. On-demand fetching, no intermediate storage.
+
+These exists in the C++20 standard library.
 
 ```C++
-transform(v.begin(), v.end(), w.begin(), [](int n) { return n + 1 });
-                                         // ^ "lambda"
+import <ranges>;
+vector v {1,2,3,4,5,6,7,8,9,10};
+auto x = std::ranges::views::transform(
+            std::ranges::views::filter(v, odd), sqr
+        );
 ```
 
-Lambda anatomy:
-
-```
-            param list
-               |
-lambda: [...](...) mutable? noexcept? { ... }
-          |                              |
-        capture list                    body
-```
-
-Semantics: 
+It gets better: `filter`, `transform` take a second form:
 
 ```C++
-void f(T1 a, T2 b) {
-    [a, &b](int x) { body }
-}
+filter(pred), transform(f) // Just supply the function, not the range
 ```
 
-In the C++ context, lambdas are really just objects. This would be translated to:
+Become callable objects, parameterized by a range `R`.
+
+Ex.
+```C++
+filter(pred)(R), transform(f)(R)
+```
+
+So our example becomes:
 
 ```C++
-void f (T1 a, T2 b) {
-    class ??? {     // ??? - anonymous class we can't access the name, would be a random thing compiler made up
-            T1 a; // any variables external to the lambda that you want to access here, list them in the capturing list
-            T2 &b;
-        public:
-            ???(T1 a, T2 &b): a{a}, b{b} {}
-            auto operator()(int x) const {
-                body;
-            }
-    }
-};
-
-// Invocation would look like this
-???{a, b}.operator() (...);
+transform(sqr)(filter(odd)(R))
 ```
 
-If the lambda is declared mutable, then `operator()` is not const.
-- Capture list - provides access to variables in the enclosing scope.
+Then operator `|` is defined (Normally the bitwize or operator) so that `R|A` is mapped to `A(R)`. So `B(A(R))` is `B(R|A)` and hence `R|A|B`.
+
+So we can write
+
+```C++
+auto x = v 
+            | std::ranges::views::filter(odd) 
+            | std::ranges::views::transform(sqr);
+```
+
+- Just like a Bash pipeline!
 
 ---
-[A Case Study in Strings <<](./problem_18.md) | [**Home**](../README.md) | [>> Heterogeneous Data](./problem_20.md)
+[Abstraction over containers << ](./problem_18.md) | [**Home**](../README.md) | [>> I'm leaking!](./problem_20.md)
