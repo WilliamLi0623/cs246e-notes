@@ -29,7 +29,7 @@ iterator Vector<T>::erase(iterator first, iterator last);
 So maybe iterator isn't the right level abstraction.
 - Maybe the right abstraction encapsulates a pair of iterators - a range.
 
-Consider: Compusing multiple functions on some input.
+Consider: Composing multiple functions on some input.
 
 Ex.
 Filter and transform (say take all the odd numbers and square them).
