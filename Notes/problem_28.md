@@ -1,5 +1,141 @@
 [Abstraction over Iterators <<](./problem_25.md) | [**Home**](../README.md) | [>> I want an even faster vector](./problem_27.md)
 
+# Problem 29: Do you expect me to be able to do something like that?
+
+## **2025-11-18**
+
+Template tricks were kind of an accident. Templates weren't originally designed for compile-time tricks.
+
+But now that it's an accepted thing, can it be made easier?
+
+Let's start by advancing random access iterators.
+- If the iterator is random acccess, use `+=`.
+- Else the code should not compile.
+
+```C++
+template<typename Iter> requires std::is_same_v<iterator_traits<Iter>::iterator_category, random_access_iterator_tag>
+Iter advance(Iter it, size_t n) {
+    it += n;
+    return it;
+}
+
+template<typename T, typename U> struct is_same {
+    static const bool value = false;
+};
+
+template<typename T> struct is_same <T,T> {
+    static const bool value = true;
+};
+
+template<typename T, typename U> constexpr bool is_same_v = is_same<T,U>::value;
+```
+
+- `requires` clause constraints `Iter` such that the stated condition must be true.
+
+What happens if we try to advance a non-random access iterator? `advance (list.begin(),4)`.
+
+If we didn't have the `requires` clause:
+- `No operator += for list::iterator`.
+  - (Typically long output).
+- Now that we do - compiler says `list::iterator` fails the `requires` clause.
+
+## **2025-11-19**
+
+We like abstraction - Can we name this constraint?
+- Called a **concept**.
+
+```C++
+template<typename Iter>
+concept RandomAccessIterator = std::is_same_v<iterator_traits<Iter>::iterator_category, random_access_iterator_tag>;
+```
+
+We can now write:
+
+```C++
+template<typename Iter> requires RandomAccessIterator<Iter>
+Iter advance(Iter it, int n) {
+    return it+=n;
+}
+```
+
+OR:
+
+```C++
+template<RandomAccessIterator Iter>
+Iter advance(Iter it, int n) {
+    return it += n;
+}
+```
+
+Can we write
+
+```C++
+RandomAccessIterator advance(RandomAccessIterator it, int n) {
+    return it += n;
+}
+```
+
+No - `RandomAccessIterator` is not a type, it's a constraint on a type.
+
+And code making use of conecepts is a template.
+- This advance looks like an ordinary function.
+
+We can do this:
+
+```C++
+RandomAccessIterator auto advance(RandomAccessIterator auto it, int n) {
+    return it += n;
+}
+```
+
+Can write concepts for the other categories.
+
+```C++
+BidirectionalIterator auto advance(BidirectionalIterator auto it, int n) {
+    // ...
+}
+
+ForwardIterator auto advance(ForwardIterator auto it, int n) {
+    // ...
+}
+```
+
+Now if, for example, an iterator's category is `BidirectionalIterator`, the `BidirectionalIterator` version will compile and the other two will fail the template instantiation.
+
+So is this program well-formed? Yes!
+
+C++ rule: **SFINAE**
+- Substitution Failure Is Not An Error.
+
+In other words - if `t` is a type and `template<typename T> ... f (...) {...}` is a template function, and substituting `t` for `T` results in an invalid function, the compiler does **not** signal an error - it just removes that instantiation from consideration during overload resolution.
+
+On the other hand - if **no** version of the function is in scope to handle the overload call, that is an error.
+- Only applies to template functions.
+
+What if we tell lies? What is we give the class the `RandomAccessIterator` category, but don't give a `+=` operator?
+
+The function will pass concept check, but compilation will fail at the attempted use of `+=`.
+- The "old" error checking, prior to concepts.
+
+We could expand our definition of `RandomAccessIterator` to include **both** the right category **and** the needed operations.
+
+```C++
+template<typename T> concept RandomAccessIterator = 
+    std::is_same_v<iterator_traits<T>::iterator_category, random_access_iterator_tag> &&
+    requires (T it, T other, int n) {
+        {it != other} -> std::same_as<bool>;
+        {++it} -> std::same_as<T>;
+        {it += n} -> std::same_as<T>;
+    };
+```
+
+Etc. for other iterator types.
+
+Now a type with the right category but is missing the needed operations will fail the concept check.
+
+Q: Do we need the iterator tag any more then? Are the listed operations enough?
+A: The tag is still valuable. Provides semantic information about the operations. Suppose an iterator is `BidirectionalIterator` but also has `+=` for some unrelated purpose. Need the tag to keep it from being treated as `RandomAccessIterator`.
+
 # Problem 26: Generalize the Visitor Pattern
 ## **2021-11-18**
 

@@ -1,25 +1,25 @@
 [Generalize the Visitor pattern <<](./problem_26.md) | [**Home**](../README.md) | [>> I want to print the unprintable!](./problem_28.md)
 
-# Problem 27: I want an even faster vector
-## **2021-11-18**
+# Problem 30: I want an even faster vector
+## **2025-11-19**
 
-In the good old days of C, you could copy an array (even an array of structs!) very quickly by calling a function `memcpy` (similar to `strcpy`, but for arbitrary memory, not just strings).
+In the good old days of C, you could copy an array (even an array of structs!) very quickly by calling a function `memcpy` (similar to `strcpy`, but for arbitrary memory, not just characters).
 
 `memcpy` was probably written in assembly, and was as fast as the machine could possibly be.
 
-Nowadays in C++, copies invoke copy constructors, which are costly function calls. I long for the good old days 😢
+Now in C++, copies invoke copy constructors, which are costly function calls.
 
-_Good news!_
+Can we go back to these simpler times?
 
 In C++, a type is considered **POD (plain old data)** if it:
-- has a trivial default constructor (equiv. to `= default`)
-- is trivially copyable 
-  - big 5 all have default implementations
-- is standard layout
-    - no virtual methods or bases
-    - all members have the same visibility
-    - no reference members
-    - no fields in both base class & subclass, or in multiple base classes
+- Has a trivial default constructor (equiv. to `= default`).
+- Is trivially copyable.
+  - Big 5 all have default implementations.
+- Is standard layout.
+    - No virtual methods or bases.
+    - All members have the same visibility.
+    - No reference members.
+    - No fields in both class & subclass, or in more than one base class.
 
 For POD types, semantics is compatible with C, and `memcpy` is safe to use.
 
@@ -44,6 +44,7 @@ public:
     }
 }
 ```
+
 Works... But condition is evaluated at run-time, but the result is known at compile-time (compiler may or may not optimize)
 
 _Second option (no run-time cost):_

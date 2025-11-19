@@ -1,7 +1,117 @@
 [A big unit on Object Oriented Design <<](./object_oriented_design.md) | [**Home**](../README.md) | [>> Abstraction over Iterators](./problem_25.md)
 
-# Problem 24: Shared Ownership
-## **2021-11-16**
+# Problem 26: In Which We Challenge Problem 26
+## **2025-11-11**
+
+Is `dynamic_cast` really bad style?
+
+Where have we used it?
+- `whatIsIt` - breaks if we add more book type.
+- `virtual operator=` - doesn't.
+  - Only need to compare with your own type, not all types in the hierarchy.
+- So `operator=`, at least, was OK.
+
+How might we fix `whatIsIt`? Could have written a virtual method:
+
+```C++
+class Book {
+    // ...
+    virtual void identify() { cout << "Book"; }
+};
+
+void whatIsIt(Book *b) {
+    if (b) b->identify();
+    else cout << "Nothing";
+}
+```
+
+Works by creating an interface function that is uniform across all `Book` types.
+- But what if the interface isn't uniform across all types in the hierarchy?
+
+Inheritance and virtual methods works well when:
+- There is an unlimited number of potential specializations of a base abstraction.
+- Each following the same interface.
+
+But what if you have the opposite case:
+- Small number of specializations, all know in advanced, and unlikely to change.
+- Different specializations might have different interfaces.
+
+In the first case - adding a subclass is zero effort.
+In the second case - adding a subclass means there is work, but we're not expected to do that, or if we do, we expect the work.
+
+Ex.
+
+```C++
+class Turtle: public Enemy {
+    void stealShell();
+};
+
+class Bullet: public Enemy {
+    void deflect();
+};
+```
+
+Inheritances not uniform. New `Enemy` => new interface, unavoidable work.
+
+So:
+- Maybe it's best to regard the set of `Enemy` types as fixed.
+- Then maybe dynamic casting isn't so bad.
+
+BUT
+- Then maybe inheritance is the wrong mechanism.
+
+If you know that `Enemy` will only be `Turtle` or `Bullet`, and you accept that adding new `Enemy` types will require widespread changes anyway, then consider:
+
+```C++
+import <variant>; // Type-safe union
+using Enemy = std::variant<Turtle, Bullet>;
+// An Enemy is a Turtle or a Bullet. Period.
+Enemy e {Turtle{}};
+```
+
+Discriminating the value:
+
+```C++
+if (holds_alternative<Turtle>(e)) {
+    cout << "Turtle";
+} else {
+    //...
+}
+```
+
+Extracting the value:
+
+```C++
+try {
+    Turtle t = get<Turtle>(e);
+    // Use t...
+} catch (bad_variant_access &) {
+    // It's not a Turtle...
+}
+```
+
+Store as one type and fetch as another => throws.
+
+Variant left uninitialized
+- First option default-constructed.
+- Compile error if not default constructible.
+
+Options:
+1. Pick a type with a default constructor for the first option.
+2. Don't leave your variant uninitialized.
+3. Use a "dummy" type as the first option. `std::monostate` exists for this purpose.
+
+- Can use to make an "optional" type.
+
+Ex.
+
+```C++
+variant<monostate, T> // T or nothing
+```
+
+- But also, `std::optional<T>`.
+
+Implementation - we will see later.
 
 Is C++ hard? (No, if you're a client programmer)
 

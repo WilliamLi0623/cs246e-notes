@@ -351,13 +351,14 @@ If you need true shared ownership - we'll see later.
     - Extension: **Non-Virtual Interface (NVI) Idiom**
       - If you think private pure virtual methods are weird, in fact, public pure virtual methods are weird, and private ones are normal.
       - `public virtual` methods are simultaneously:
-        - Part of a class' interface
-          - Pre/post conditions
-          - Respect invariants
-        - "Hooks" for customizations by subclasses, overriding code could be anything
-        - The two above mentioned points are at odds with each other (can't/hard to be both)
-      - NVI says: All virtual methods should be private (except for destructor)
-      - In other words, all public methods should be non-virtual
+        - Public: Part of a class' interface.
+          - Pre/post conditions.
+          - Respect invariants.
+        - Virtual: Customizable by subclasses.
+          - Overriding code could be anything.
+        - The two above mentioned points are at odds with each other (can't/hard to be both).
+      - NVI says: All virtual methods should be private, or at least protected (except for destructor).
+      - In other words, all public methods should be non-virtual.
       - Ex. Non-NVI class
         ```C++
         class DigitalMedia {
@@ -380,33 +381,34 @@ If you need true shared ownership - we'll see later.
           - TLDR you can always take control of what would happen.
           - Because the public method `play` is non virtual and it is public, I can still have control over it. The subclasses cannot replace `play`, only `doPlay`.
           - Now, I can make promises, e.g, I can add `checkCopyright()` before `doPlay`.
-        - In the future, can add before/after code
-          - Ex. call `checkCopyright()` before, call `updatePlayCount()` afterwards
-      - Generalizes the Template Method Pattern
-        - Puts every virtual method function inside a template method
+        - In the future, can add before/after code.
+          - Ex. call `checkCopyright()` before, call `updatePlayCount()` afterwards.
+      - Generalizes the Template Method Pattern.
+        - Puts every virtual method function inside a template method.
 - **Interface Segregation Principle**
-    - Many small interfaces is better than one large interface
-    - If a class has many functionalities, each client of the class should only see the functionality that it needs
-    - Ex. Video Game (will ignore NVI to keep example short)
+    - Many small interfaces is better than one large interface.
+    - If a class has many functionalities, each client of the class should only see the functionality that it needs.
+    - Ex. Video Game (will ignore NVI to keep example short).
       ```C++
       class Enemy {
           public:
+              virtual void draw();    // Needed by UI
               virtual void strike();  // Needed by game logic
-              virtual void draw();    // Needed by UI'
       };
       ``` 
       ```C++
       class UI {
-          vector<Enemy *> v;
+          vector<Enemy*> v;
       };
       ```
       ```C++
       class Battlefield {
-          vector<Enemy *> v;
+          vector<Enemy*> v;
       };  
       ```
-      - If we need to change the drawing interface, `Battlefield` must recompile for no reason
-      - Creates needless coupling between `UI` and `Battlefield`
+      - If we need to change the drawing interface, `Battlefield` must recompile for no reason.
+      - If we change the combat interface, `UI` must recompile for no reason.
+      - Creates needless coupling between `UI` and `Battlefield`.
       - One solution: **Multiple Inheritance**
       ```C++
       class Enemy: public Draw, public Combat {};
@@ -419,22 +421,22 @@ If you need true shared ownership - we'll see later.
       ```
       ```C++
       class UI {
-          vector<Draw *> v;
+          vector<Draw*> v;
       };
       ```
       ```C++
       class Combat {
           public:
               virtual void strike() = 0;
-      }
+      };
       ```
       ```C++
       class Battlefield {
-          vector<Combat *> v;
-      }
+          vector<Combat*> v;
+      };
       ```
       - Example of the **Adapter Pattern**
-    - General use of the Adapter Pattern: when a class provides an interface different from the one you need
+    - General use of the Adapter Pattern: when a class provides an interface different from the one you need.
     - Ex.
 
         ```
@@ -455,7 +457,7 @@ If you need true shared ownership - we'll see later.
 
         ```
       - Private inheritance is when the parent-child relationship between the two classes is only known in the child class, not known to outsiders.
-    - _Detour:_ Issues with multiple inheritance
+    - _Detour:_ Issues with multiple inheritance.
 
         ```
         +------+        +------+    
@@ -505,8 +507,8 @@ If you need true shared ownership - we'll see later.
         class B: virtual public A { ... };
         class C: virtual public A { ... };
         ```
-    - Virtual inheritance: ensures only one copy of a base class's member variables are inherited by grandchild derived classes
-    - Now `d.a()` is no longer ambiguous
+    - Virtual inheritance: ensures only one copy of a base class's member variables are inherited by grandchild derived classes.
+    - Now `d.a()` is no longer ambiguous.
     - Ex. iostream hiearchy
 
       ```
@@ -528,7 +530,7 @@ If you need true shared ownership - we'll see later.
       ifstream       istringstream    fstream  stringstream    
        
       ```
-    - _Problem:_ How will a class like `D` be laid out in memory (implementation specific)
+    - _Problem:_ How will a class like `D` be laid out in memory (implementation specific).
         - Consider:
         ```
         +----------+    <-- Should look like an A*, B*, C*, D*, but it doesn't work for C*
@@ -563,24 +565,24 @@ If you need true shared ownership - we'll see later.
         | A fields |
         +----------+
         ```
-    - `B` and `C` need to be laid out so that we can find the `A` part but the distance is not known (depends on the runtime of the object)
-    - _Solution:_ location of the base object stored in vtable
-        - Also note the diagram doesn't simultaneously look like `A`, `B`, `C` and `D`, but slices of it do
-        - Therefore pointer assignment among `A`, `B`, `C`, `D` pointers may change the address stored in the pointer
+    - `B` and `C` need to be laid out so that we can find the `A` part but the distance is not known (depends on the runtime of the object).
+    - _Solution:_ location of the base object stored in vtable.
+        - Also note the diagram doesn't simultaneously look like `A`, `B`, `C` and `D`, but slices of it do.
+        - Therefore pointer assignment among `A`, `B`, `C`, `D` pointers may change the address stored in the pointer.
         ```C++
-        D *d = ___;
+        D *d = new D {...};
         A *a = d;   // Changes the address
         ```
-        - `static_cast`, `const_cast`, `dynamic_cast`, under multiple inheritance will also adjust the value of the pointer (`reinterpret_cast` will not)
+        - `static_cast`, `const_cast`, `dynamic_cast`, under multiple inheritance will also adjust the value of the pointer (`reinterpret_cast` will not).
 - **Dependency Inversion Principle**
-    - High level modules should not depend on low-level modules. Both should depend on abstractions
-    - Abstract classes should never depend on concrete classes
-    - Traditional top-down design
-        - High level modules _uses_ low level module
-        - Ex. `Word count` _uses_ `keyboard reader`
+    - High level modules should not depend on low-level modules. Both should depend on abstractions.
+    - Abstract classes should never depend on concrete classes.
+    - Traditional top-down design:
+        - High level modules _uses_ low level module.
+        - Ex. `Word count` _uses_ `keyboard reader`.
         - What if I want to use a file reader?
-          - Changes to details affect the higher level word count module
-        - Dependency inversion
+          - Changes to details affect the higher level word count module.
+        - Dependency inversion.
         <pre>
         +-------------------+   +--------------------------------+
         | High Level Module |-->|      Low Level Abstraction     | 
@@ -604,13 +606,13 @@ If you need true shared ownership - we'll see later.
         </pre>
         - Ex.
             ``` 
-            +-------+    +-----------+
+            +-------+     +-----------+
             | Timer |◇-->| Bell      |
-            +-------+    +-----------+
-                         |+ notify() |
-                         +-----------+
+            +-------+     +-----------+
+                          |+ notify() |
+                          +-----------+
             ```
-            - When the timer hits some specified time, it rings the `Bell` (calls `Bell:notify`, which rings the bell)
+            - When the timer hits some specified time, it rings the `Bell` (calls `Bell:notify`, which rings the bell).
             - What if we want to trigger other events? Maybe more than one:
             <pre>
             +-------+  * +-----------+
@@ -628,7 +630,7 @@ If you need true shared ownership - we'll see later.
                   |+ notify() |   |+ notify() |     
                   +-----------+   +-----------+
             </pre>
-            - Maybe we want a dynamic set of responders
+            - Maybe we want a dynamic set of responders.
             <pre>
             +-----------------------+     0..*
             | Timer                 |◇--------->+-----------+
@@ -646,7 +648,7 @@ If you need true shared ownership - we'll see later.
                                           |+ notify() |   |+ notify() |
                                           +-----------+   +-----------+
             </pre>
-            - Now _`Responder`_ is depending on the concrete `Timer` class: apply Dependency Inversion again
+            - Now _`Responder`_ is depending on the concrete `Timer` class: apply Dependency Inversion again.
             <pre>
             +------------------------+      +-----------------+ 
             | Source                 |⬦---->| Responder       |
@@ -659,14 +661,16 @@ If you need true shared ownership - we'll see later.
                 +-------+             +------+     +-------+
                 | Timer |&lt;-----------⬦| Bell |     | Light |
                 +-------+             +------+     +-------+
-                    ^                                   ⬦
+                | + getTime()                           ⬦
+                +-------+                               |
+                    ^                                   |
                     |                                   |
                     +-----------------------------------+
            
             </pre>
             - If Light/Bell's behaviour depends on the time, they may need to depend on the concrete timer for a `getTime` method.
-              - Could dependency invert this again if you wanted
-              - But at some points you gotta stop, and this is a good point to stop
+              - Could dependency invert this again if you wanted.
+              - But at some points you gotta stop, and this is a good point to stop.
             - **General Solution:** known as the **Observer Pattern**
             <pre>
             +-----------------+             +-----------------+ 
@@ -685,18 +689,18 @@ If you need true shared ownership - we'll see later.
             +-----------------+             +-------------------+
             </pre>
             - Sequence of calls:
-                1. `Subject`'s state changes
-                2. `Subject::notifyObservers` is called (either by the `Subject` itself OR by some external controller)
-                    - Calls each `Observer`'s `notify` 
-                3. Each `Observer` calls `concreteSubject::getState` to query the state + react accordingly
+                1. `Subject`'s state changes.
+                2. `Subject::notifyObservers` is called (either by the `Subject` itself OR by some external controller).
+                    - Calls each `Observer`'s `notify`.
+                3. Each `Observer` calls `concreteSubject::getState` to query the state + react accordingly.
 
 ## **Some More Design Patterns**
 
 ### **Factory Method Pattern**
 
-When you don't know exactly what kind of object you want, and your preferences may vary
-- Also called the **Virtual Constructor Pattern**
-- Strategy pattern applied to object construction
+When you don't know exactly what kind of object you want, and your preferences may vary.
+- Also called the **Virtual Constructor Pattern**.
+- Strategy pattern applied to object construction.
 
 Ex. 
 <pre>
@@ -723,9 +727,9 @@ Ex.
       +------+               +------+    
 </pre>
 
-- Randomly generated
-- More turtles in easy levels
-- More bullets in hard levels
+- Randomly generated.
+- More turtles in easy levels.
+- More bullets in hard levels.
 
 ```C++
 class Level {
@@ -759,9 +763,9 @@ Enemy *e = l->getEnemy();
 - We don't know what kind of enemy we got, it's determined by `Easy` or `Hard`.
 
 ### **Decorator Pattern**
-Add/remove functionality to/from objects at runtime
+Add/remove functionality to/from objects at runtime.
 
-Ex. add menus/scrollbars to windows - either or both without a combinatorial explosion of subclasses
+Ex. add menus/scrollbars to windows - either or both without a combinatorial explosion of subclasses.
 
 <pre>
                       +-----------+
@@ -786,9 +790,9 @@ Ex. add menus/scrollbars to windows - either or both without a combinatorial exp
                             +----------------------+            +----------------------+
 </pre>
 
-Every `Decorator` IS-A component AND HAS-A `Component`
-- `Window w/ scrollbar` is a kind of window, _and_ has a pointer to the underlying plain window
-- `Window w/ scrollbar + menu` is a window and has a pointer to a `window w/ scrollbar`, which has a pointer to a `plain window`  
+Every `Decorator` IS-A component AND HAS-A `Component`.
+- `Window w/ scrollbar` is a kind of window, _and_ has a pointer to the underlying plain window.
+- `Window w/ scrollbar + menu` is a window and has a pointer to a `window w/ scrollbar`, which has a pointer to a `plain window`.
 
 Ex.
 
