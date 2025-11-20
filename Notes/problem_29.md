@@ -25,7 +25,10 @@ For POD types, semantics is compatible with C, and `memcpy` is safe to use.
 
 How can we use it? - Only safe to use if `T` is a POD type
 
+## **2025-11-20**
+
 _One option:_
+
 ```C++
 template<typename T> class vector {
 private:
@@ -36,7 +39,7 @@ public:
     vector(const vector &other): 
         theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
         // value is true if T is pod, false otherwise
-        if (std::is_pod<T>::value) {
+        if (std::is_pod_v<T>) {
             memcpy(theVector, other.theVector, n * sizeof(T));
         } else {
             // as before
@@ -47,139 +50,107 @@ public:
 
 Works... But condition is evaluated at run-time, but the result is known at compile-time (compiler may or may not optimize)
 
-_Second option (no run-time cost):_
+_Second option (at compile-time, outdated):_
+- Make two versions of the constructor, both templates, have exactly one of them be valid based on `std::is_pod_v<T>`. Then SFINAE will pick up the valid one.
+
 ```C++
 template<typename T> class vector {
 // ...
 public:
     template<typename X = T>
-    vector(enable_if<std::is_pod<X>::value, const T&>::type other): 
+    vector(enable_if<std::is_pod_v<X>, const T&>::type other): 
         theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
             memcpy(theVector, other.theVector, n * sizeof(T));
         }
 
     template<typename X = T>
-    vector(enable_if<!std::is_pod<X>::value, const T&>::type other):
+    vector(enable_if<!std::is_pod_v<X>, const T&>::type other):
         theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
             // original implementation
         }
 }
 ```
+
 How does it work?
+
 ```C++
-template<bool b, typename> struct enable_if;
+template<bool b, typename T> struct enable_if;
 template<typename T> struct enable_if<true, T> {
     using type = T;
 };
 ```
-- Yea this brings back memories of lambda calc
-- If the boolean is false, it has no definition, does not exist!
 
-With metaprogramming, what you don't say is as important as what you do say.
+_Third option (concepts):_
 
-If `b` is `true`, `enable_if` defines a struct whose `type` member typedef is `T`. So if `std::is_pod<T>::value == true`, 
-- then `enable_if<std::is_pod<T>::value, const T&>::type => const T&` by substitution
-
-If `b` is `false`, the struct is declared but not defined. So `enable_if<b, T>` will not compile.
-
-So one of the two versions of the copy constructor won't compile (the one with the `false` condition).
-
-Then how is this a valid program?
-
-**C++ rule:** <u>SFINAE (Substitution Failure Is Not An Error)</u>
-
-In other words - if `t` is a type,
 ```C++
-template<typename T> __ f(___) { ____ }
-```
-is a template function, and substituting `T = t` results in an invalid function, the compiler does _not_ signal an error - it just removes that instantiation from consideration during overload resolution.
-
-On the other hand, if _no_ version of the function is in scope and substitutes validly / to handle the overload call, that is an error.
-
-Question: why is this wrong (having no `template<typename X = T>` compared to the above)?
-```C++
-template<typename T> class vector {
+template <typename T> class vector {
     // ...
 public:
-    vector(typename enable_if<std::is_pod<T>::value, const T&>::type other);
-    // ...
-    vector(typename enable_if<!std::is_pod<T>::value, const T&>::type other);
+    template<typename X = T> requires std::is_pod_v<X>
+    vector(const T &other): 
+        theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
+            memcpy(theVector, other.theVector, n * sizeof(T));
+        }
+
+    template<typename X = T> requires !std::is_pod_v<X>
+    vector(const T &other):
+        theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
+            // original implementation
+        }
 };
 ```
-That is, why do we need the extra template out front? 
 
-Because SFINAE applies to template functions and these methods are ordinary functions (constructors), not templates.
-- They depend on `T`, but `T`'s value was determined when you decided what to put in the vector
-- If substituting `T = t` fails, it invalidates the entire `vector` class, not just the method
+So this compiles, but it crashes. Why? If you put debugging print statements, in these copy constructors, they don't print.
+- We're getting the provided copy constructor => shallow copies.
+- These templates are not enough to suppress the generation of the provided copy constructor. - And a non-templated match is always preferred over a templated match.
 
-So make a separate template, with a new arg `X`, which can be defaulted to `T`, and do `is_pod<X>`, not `is_pod<T>`. 
+What can we do about this? Could try:
 
-... It compiles, but when we run it, it crashes
-
-**Why????? Hint:** If you put debug statements into both of these constructors, they don't print. Which means they did not run.
-
-**Ans:** We're getting the compiler-supplied copy constructor, which is doing shallow copies. Eventually leads to double free and there u go :yep:.
-
-These templates are not enough to suppress the auto-generated copy constructor. A non-templated match is always preferred to a templated one.
-
-What do we do about it?
-
-Could try: disabling the copy constructor
 ```C++
-template<typename T> class vector {
-// ...
-public:
-    vector(const vector &other) = delete;
-}
+vector (const vector &) = delete;
 ```
-Not allowed, can't disable the copy constructor and then create another copy constructor.
+
+Not allowed, can't disable the copy constructor and still write one.
 
 Solution that actually works: **overloading**
+
 ```C++
 template<typename T> class vector {
     // ...
-    // a dummy structure just give me a type so I can overload on
+    // A dummy structure just give me a type so I can overload on.
     struct dummy{};
 public:
-    // create a copy ctor
-    // just gonna have it call my actual constructor I wanna use (the 2 ctors below)
-    // btw this is constructor delegation, if both ctor has body, then the other ctor's body would run first, and this current body will run after
     vector(const vector &other): vector{other, dummy{}} {}
 
-    // Now we can do our SFINAE
-    template<typename X = T> 
-    vector(typename enable_if<std::is_pod<X>::value, const T&>::type other, dummy) { ... }
+    template<typename X = T> requires is_pod_v<X>
+    vector(const vector &other, dummy) { ... }
 
-    template<typename X = T> 
-    vector(typename enable_if<!std::is_pod<X>::value, const T&>::type other, dummy) { ... }
+    template<typename X = T> requires !is_pod_v<X>
+    vector(const vector &other, dummy) { ... }
 };
 ```
-- Overload the constructor with an unused `dummy` arg
-- Have the copy constructor delegate to the overloaded constructor
-- Copy constructor is inline, so no function call overhead
-- Most importantly, this works!
 
-Can write some "helper" definitions to make `is_pod` and `enable_if` easier to use (C++ 14)
-```C++
-// convention: if the name has _v, it would extract the value field
-template<typename T> constexpr bool is_pod_v = std::is_pod<T>::value
-// convention: if the name has _t, it would extract the type field
-template<bool b, typename T> using enable_if_t = typename enable_if<b, T>::type
-```
-- Standardized conventions since C++ 14
+_Forth option (constexpr if):_
+If you just want to use a compile-time value to choose between implementations, there is an easier way.
 
-Now slightly cleaner
 ```C++
 template <typename T> class vector {
     // ...
     struct dummy{};
 public:
-    // ...
-    template<typename X = T> vector(enable_if_t<is_pod_v<X>, const T&> other, dummy);
-
-    template<typename X = T> vector(enable_if_t<!is_pod_v<X>, const T&> other, dummy);
+    vector (const vector &other): theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
+        if constexpr (std::is_pod_v<T>) {
+            memcpy(theVector, other.theVector, n * sizeof(T));
+        } else {
+            // original implementation
+        }
+    }
 };
 ```
+
+For constexpr if:
+- Condition must be a compile-time value.
+- Non-matching branch is **discarded**.
 
 ## Move / Forward implementation
 
