@@ -1,7 +1,7 @@
 [I want to print the unprintable! <<](./problem_28.md) | [**Home**](../README.md) | [>> Resolving Method Overrides at Compile-Time](./problem_30.md)
 
-# Problem 29: Collecting Stats
-## **2021-11-23**
+# Problem 23: Collecting Stats
+## **2025-11-25**
 
 I want to know how many `Student`s I created.
 

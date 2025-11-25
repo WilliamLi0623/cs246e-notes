@@ -1,16 +1,16 @@
 [Resolving Method Overrides at Compile-Time <<](./problem_30.md) | [**Home**](../README.md) | [>> Logging](./problem_32.md)
 
-# Problem 31: Polymorphic Cloning
-**2021-11-25**
+# Problem 35: Polymorphic Cloning
+**2025-11-25**
 
 ```C++
 Book *pb = ...;
 Book *pb2 = // I want an exact copy of *pb;
 ```
 
-Can't call constructor directly (we don't know what `*pb` is, ie. don't know which constructor to call).
+Can't call constructor directly - Don't know what `*pb` is, therefore don't know which constructor to call.
 
-**Standard Solution:** virtual `clone` method - Prototype Pattern
+**Standard Solution:** virtual `clone` method - Prototype Pattern.
 
 ```C++
 class Book {
@@ -27,9 +27,10 @@ public:
 
 // Comic - similar
 ```
+
 - Having different return type is fine (i.e, different signature) since `Text` and `Comic` would still be a subclass of `Book`.
 
-Boilerplate code - can we reuse it?
+Boilerplate code - Can we reuse it?
 
 Works better with an abstract base class:
 
