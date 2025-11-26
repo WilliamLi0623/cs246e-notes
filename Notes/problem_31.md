@@ -1,82 +1,127 @@
-[I want to print the unprintable! <<](./problem_28.md) | [**Home**](../README.md) | [>> Resolving Method Overrides at Compile-Time](./problem_30.md)
+[I Want an Even Faster Vector <<](./problem_30.md) | [**Home**](../README.md) | [>> Variants Revisited](./problem_32.md)
 
-# Problem 23: Collecting Stats
-## **2025-11-25**
+# Problem 31: Move / Forward Implementation
+## **2025-11-20**
 
-I want to know how many `Student`s I created.
-
-```C++
-class Student {
-        int assns, mt, finals;
-        static int count;   // Associated with the class, not one per object
-    public:
-        Student(...) { ++count; }
-        static int getCount() { return count; } // static methods
-};
-```
-
-- `static` methods have no `this` parameter
-- Thus not really a method, more like scoped function
-- Moreover, the variable is not defined, when we include in headers, it would be declared over and over. Thus, we have to do the following:
-
-_`.cc`_
-```C++
-int Student::count = 0; // must define the variable
-```
-
-- Latter versions cleaned this up (>= 17)
-
-Now
+`std::move` - First attempt:
 
 ```C++
-Student s1{...}, s2{...}, s3{...};
-
-std::cout << Student::getCount() << std::endl;
-```
-
-Now I want to count objects in other classes. How do we abstract the solution into reusable code.
-
-```C++
-template<typename T> struct Count {
-    static int count;
-    Count() { ++count; }
-    Count(const Count&) { ++count; }
-    Count(Count&&) { ++count; }
-    ~Count() { --count; }
-    static int getCount() { return count; }
-};
-
-template<typename T> int Count<T>::count = 0;
-```
-
-```C++
-class Student: Count<Student> {
-        int assns, mt, final;
-    public:
-        Student(...): ...
-        // accessors
-        using Count<Student>::getCount; // Make this function visible 
+template <typename T> T&& move(T &&x) {
+    return static_cast<T&&>(x);
 }
 ```
 
-**Private Inheritance**
-  - inherits `Count`'s implementation without creating an "is-a" relationship
-  - Members of  `Count` become private in `Student`
+Doesn't quite work, `T&&` is a universal reference, not rvalue reference. If `T` is deduced to be an lvalue reference, then `T&&` is an lvalue reference.
+- Need to make sure `T` is not an lvalue reference.
+  - Strip off any reference from `T`.
 
-Now we can easily add it to other classes:
+Correct:
+
 ```C++
-class Book : Count<Book> {
-    // ...
-    public:
-        using Count<Book>::getCount;
-};
+template<typename T> constexpr std::remove_reference_t<T>&& move(T &&x) {
+    return static_cast<std::remove_reference_t<T>&&>(x);
+}
 ```
 
-Why is `Count` a template?
-- So that for each class `C`, `class C : Count<C>` creates a new unique, instantiation of `Count` for each `C`. This gives `C` its own counter vs. sharing one counter over all subclasses
+**Exercise:** write `remove_reference`
 
-This technique (inheriting from a template specialized by yourself)
-- Looks weird, but happens enough to have its own name: **The Curiously Recurring Template Pattern (CRTP)**
+**Q:** Can we save some typing and use `auto`?
+
+```C++
+template<typename T> auto move(T &&x) { ... }
+```
+
+**A:** No! By-value auto throws away reference and outer const
+- Recall that `auto x = y` gives x the same type as the **value** of y (i.e, the type of `y` as if it was copied).
+
+```C++
+int z;
+int &y = z;
+auto x = y; // x is an int
+
+const int &w = z;
+auto v = w; // int
+```
+
+By reference, `auto &&` is a universal reference, so the code from the question section works (it does compile), but not as we expected.
+
+But still... is there a way to do type deduction without losing ref and const?
+
+Need a type definition rule that doesn't discard references.
+
+The answer is yes, by using `decltype`. It produces the type its argument was declared to have.
+
+**Note**: The argument of `decltype` is never evaluated, only type-checked.
+
+```C++
+decltype(-) // returns the type - was declared to have
+decltype(var)  // returns the declared type of the variable
+decltype(expr) // returns lvalue or rvalue, depending on whether the expr is an lvalue or rvalue
+
+int z;
+int &y = z;
+decltype(y) x = z;  // x is an int&, auto would only give you int
+x = 4;  // Affects z
+
+/* Path/Example 1 */
+auto x = z;
+x = 4;  // Does not affect z
+
+/* Path/Example 2 */
+decltype(z) s = z;  // s is an int
+s = 5; // Does not affect z
+
+/* Path/Example 3 */
+decltype((z)) r = z;    // r is an int&, since (z) is a ref, since () is an expression
+r = t;  // Affects z
+```
+
+
+`decltype(auto)`
+- Perform type deduction, like auto, but use the decltype rules.
+- i.e. don't throw away references.
+
+```C++
+template<typename T> decltype(auto) move(T &&x) {
+    return static_cast<std::remove_reference_t<T>&&>(x);
+}
+```
+
+`std::forward` - First attempt:
+
+```C++
+template<typename T> constexpr T&& forward(T &&x) {
+    return static_cast<T&&>(x);
+}
+```
+
+- Doesn't seem right - casting `x` to its own type.
+
+**Reasoning:**
+- If `x` is an lvalue, `T&&` is an lvalue reference
+- If `x` is an rvalue, `T&&` is an rvalue reference
+
+Doesn't work, `forward` is called on expressions that are lvalues, that may point at rvalues.
+
+```C++
+template<typename T> void f(T&& y) { // lvalue/rvalue reference
+    ... forward(y) ...  // y is an lvalue
+}
+```
+
+`forward(y)` will _always_ yield an lvalue reference.
+
+In order to work, `forward` must know what type (including lvalue/rvalue) was deduced for `y`, ie. needs to know `T`.
+
+So `forward<T>(y)` would work.
+
+Can we prevent automatic type deduction for `forward`?
+
+```C++
+template<typename T> constexpr T&& forward(std::removed_reference_t<T>&x) noexcept {
+    return static_cast<T&&>(x);
+}
+```
 
 ---
-[I want to print the unprintable! <<](./problem_28.md) | [**Home**](../README.md) | [>> Resolving Method Overrides at Compile-Time](./problem_30.md)
+[I Want an Even Faster Vector <<](./problem_30.md) | [**Home**](../README.md) | [>> Variants Revisited](./problem_32.md)

@@ -1,4 +1,4 @@
-[The copier is broken (again) << ](./problem_22.md) | [**Home**](../README.md) | [>> A big unit on Object Oriented Design](./object_oriented_design.md)
+[The Copier is Broken (Again) << ](./problem_24.md) | [**Home**](../README.md) | [>> A big unit on Object Oriented Design](./object_oriented_design.md)
 
 # Problem 25: What Kind of `Book` is This?
 ## **2025-10-29**
@@ -125,4 +125,4 @@
 
 
 ---
-[The copier is broken (again) << ](./problem_22.md) | [**Home**](../README.md) | [>> A big unit on Object Oriented Design](./object_oriented_design.md)
+[The Copier is Broken (Again) << ](./problem_24.md) | [**Home**](../README.md) | [>> A big unit on Object Oriented Design](./object_oriented_design.md)

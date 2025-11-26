@@ -1,68 +1,79 @@
-[Polymorphic Cloning <<](./problem_31.md) | [**Home**](../README.md) | [>> Generalize the Visitor Pattern! Part 2!](./problem_33.md)
+[Collecting Stats <<](./problem_29.md) | [**Home**](../README.md) | [>> Polymorphic Cloning](./problem_31.md)
 
-# Problem 32: Logging
-## **2021-11-25**
+# Problem 34 - Resolving Method Overrides at Compile-Time
+## **2025-11-25**
 
-We want to encapsulate logging functionality and "add" it to any class.
-
-```C++
-template<typename T, typename Data> class Logger {
-public:
-    void loggedSet(Data x) {
-        std::cout << "setting data to " << x << std::endl;
-        static_cast<T*>(this)->set(x);  // No virtual call overhead
-    }
-};
-
-class Box: public Logger<Box, int> {
-    friend class Logger<Box, int>;
-    
-    int x;
-    void set(int y) { x = -y; }
-public:
-    Box(): x{0} { loggedSet(0); }
-};
-
-Box b;
-b.loggedSet(1);
-b.loggedSet(4);
-// etc.
-```
-
-Another approach:
+**Recall:** Template Method Pattern
 
 ```C++
-class Box {
-    int x;
-public:
-    Box(): x{0} {}
-    void set(int y) { x = y ;}
+class Turtle {
+    public:
+        void draw() {
+            drawHead();
+            drawShell();
+            drawFeet();
+        }
+    private:
+        void drawHead();
+        virtual void drawShell() = 0;   // vtable lookup
+        void drawFeet();
 };
 
-// Mixin Inheritance
-template<typename T, typename Data> class Logger : public T {
-public:
-    void loggedSet(Data x) {
-        std::cout << "setting data to " << x << std::endl;
-        set(x); // No vtable overhead
-    } 
+class RedTurtle: public Turtle {
+    void drawShell() override;
 };
-
-using BoxLogger = Logger<Box, int>;
-BoxLogger b;
-b.loggedSet(1);
-b.loggedSet(4);
-//etc.
 ```
-- One way is logger on top, and the other is underneath
-- What to choose? Up to personal preference 
 
-**Mixin inheritance** - can mix and match subclass functionality without writing new subclasses, just write new "decorating" classes and inherit from them
+- Is there a way to avoid vtable lookup?
 
-Note: if `SpecialBox` is a subclass of `Box`, then `SpecialBox` has no relation to `Logger<Box, int>`, nor is there any relationship between `Logger<SpecialBox, int>`, `Logger<Box, int>`.
+**Consider:**
 
-But with CRTP, `SpecialBox` is a subtype of `Logger<Box, int>`
-- Can specialize behaviour of virtual functions
+```C++
+template<typename T> class Turtle {
+    public:
+        void draw() {
+            drawHead();
+            static_cast<T*>(this)->drawShell();
+            drawFeet();
+        }
+    private:
+        void drawHead();
+        void drawFeet();
+};
+
+class RedTurtle: public Turtle<RedTurtle> {
+    friend class Turtle;
+    void drawShell();
+};
+
+class GreenTurtle: public Turtle<GreenTurtle> {
+    friend class Turtle;
+    void drawShell();
+};
+```
+
+No virtual method methods, no vtable lookup.
+- Drawback: no relationship between `RedTurtle` and `GreenTurtle`
+    - Can't store a mix of them in a container.
+
+1. Can give `Turtle` a parent:
+
+```C++
+template<typename T> class Turtle: public Enemy { ... };
+```
+
+Then can store `RedTurtles` and `GreenTurtles`
+- There is no `draw` method in `Enemy`.
+- You could give Enemy a virtual `draw` method, but then you have vtables.
+
+```C++
+class Enemy {
+    public:
+        virtual void draw() = 0;
+};
+```
+
+2. OR - Use a `variant`
 
 ---
-[Polymorphic Cloning <<](./problem_31.md) | [**Home**](../README.md) | [>> Generalize the Visitor Pattern! Part 2!](./problem_33.md)
+[Collecting Stats <<](./problem_29.md) | [**Home**](../README.md) | [>> Polymorphic Cloning](./problem_31.md)

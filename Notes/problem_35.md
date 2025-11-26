@@ -1,93 +1,60 @@
-[Logging <<](./problem_32.md) | [**Home**](../README.md) | [>> Policies](./problem_34.md) 
-# Problem 33: Generalize the Visitor Pattern! Part 2!
-## **2021-11-25**
+[Resolving Method Overrides at Compile-Time <<](./problem_30.md) | [**Home**](../README.md) | [>> Logging](./problem_32.md)
 
-Recall - we generalized visitor to automatically create the `Visitor` superclass.
+# Problem 35: Polymorphic Cloning
+**2025-11-25**
 
-Now - use CRTP to add `accept` methods to the `Book` hierarchy.
+```C++
+Book *pb = ...;
+Book *pb2 = // I want an exact copy of *pb;
+```
 
-```cpp
+Can't call constructor directly - Don't know what `*pb` is, therefore don't know which constructor to call.
+
+**Standard Solution:** virtual `clone` method - Prototype Pattern.
+
+```C++
+class Book {
+    // ...
+public:
+    virtual Book* clone() { return new Book{*this}; }
+};
+
+class Text: public Book {
+    // ...
+public:
+    Text* clone() override { return new Text{*this}; }
+};
+
+// Comic - similar
+```
+
+- Having different return type is fine (i.e, different signature) since `Text` and `Comic` would still be a subclass of `Book`.
+
+Boilerplate code - Can we reuse it?
+
+Works better with an abstract base class:
+
+```C++
 class AbstractBook {
-public: 
-    // ...
-    virtual void accept (BookVisitor& bv) = 0;
-    virtual ~AbstractBook() = default;
-};
-
-template <typename C> class BookAcceptor : public AbstractBook {
 public:
-    void accept(BookVisitor& bv) override {
-        bv.visit(*static_cast<C*>(this));
-    }
+    virtual AbstractBook *clone() = 0;
+    virtual ~AbstractBook();
 };
 
-class Text : public BookAcceptor<Text> {/* ... */};
-// etc
-```
-- This acceptor is depending on the `Book` hierarchy (unnecessary coupling, still lots of boilerplate code)
-- `BookAcceptor` inherits from `AbstractBook` and accept a `BookVisitor`
-- If I want to make another acceptor for another visitor, I have to write all this again
-
-Let's abstract these:
-```cpp
-template <typename B, typename C, typename V> 
-class Acceptor : public B { // mixin class
+template<typename T> class Book_cloneable : public AbstractBook {
 public:
-    void accept(V& v) override { v.visit(*static_cast<C*>(this)); }
+    T* clone() override { return new T{static_cast<T&>(*this)}; } // crtp
 };
 
-class Text : public Acceptor<AbstractBook, Text, BookVisitor> {
-    // ...
-};
-```
-- Now I don't need to write all those boilerplate code again, I can put this in a library and it would work on its own.
-
-So far, these things work because they don't have any field, but what if the abstract superclass has fields?
-```cpp
-class AbstractBook {
-    string title, author;
-    int length;
-public:
-    AbstractBook(string title, string author, int length);
-    virtual void accept(BookVisitor& bv) = 0;
-    virtual ~AbstractBook() = default;
-};
-
-template <typename B, typename C, typename V>
-class Acceptor : public B {
-    // same as above
-};
-
-class Text : public Acceptor<AbstractBook, Text, BookVisitor> {
-    string topic;
-    // ...
-};
-```
-- `AbstractBook` has fields, and so it has a non-trivial constructor, which must be called to initialize the `Text` object.
-- `Text` cannot call `AbstractBook`'s ctor because it is not the direct parent of `Text`. 
-- `Text` can only call `Acceptor`'s ctor
-- `Acceptor` cannot call `AbstractBook`'s ctor because it doesn't know what its parent is!
-    - Well, parent is `B`, but `B` could be anything.
-    - The intermediate class in this case is too generic so it cannot call the parent's ctor.
-- Good news! There is a one liner solution to this!
-```cpp
-template <typename B, typename C, typename V>
-class Acceptor : public B {
-public:
-    using B::B; // here is this one line
-    void accept(V& v) override { v.visit(*static_cast<C*>(this)); }
-};
-```
-- The `using` line doesn't _just_ bring back the ctor into scope like what we used before (that wouldn't make sense anyway).
-- It brings all of the `B`'s ctors into scope within `Acceptor`, rename them into `Acceptor`, and simply passing through `B`'s actual ctors.
-- Now I can do
-```cpp
-Text::Text(string title, string author, int length, string topic) :
-    Acceptor{title, author, length}, topic{topic} {}
+class Book : public Book_cloneable<Book> {};
+class Text : public Book_cloneable<Text> {};
+class Comic : public Book_cloneable<Comic> {};
 ```
 
-Exercise: apply this to the cloning problem.
-
+Looks good, this works better with a flat hierarchy. However, this cloning method is not generic enough
+- It's tightly coupled to the `Book` hierarchy. If I want to write another class with cloning, I would need to rewrite all these again
+- Reason: `Book_cloneable` is inheriting from `AbstractBook`
+- Solution: use what we would learn in [problem 33](Notes/problem_33.md)
 
 ---
-[Logging <<](./problem_32.md) | [**Home**](../README.md) | [>> Policies](./problem_34.md) 
+[Resolving Method Overrides at Compile-Time <<](./problem_30.md) | [**Home**](../README.md) | [>> Logging](./problem_32.md)

@@ -1,4 +1,4 @@
-[A Case Study in Strings <<](./problem_18.md) | [**Home**](../README.md) | [>> Heterogeneous Data](./problem_20.md)
+[A Case Study in Strings <<](./problem_18.md) | [**Home**](../README.md) | [>> What's Better Than One Iterator?](./problem_20.md)
 
 # Problem 19 - Abstraction Over Containers
 ## **2025-10-21**
@@ -155,4 +155,4 @@ If the lambda is declared mutable, then `operator()` is not const.
 - Capture list - provides access to variables in the enclosing scope.
 
 ---
-[A Case Study in Strings <<](./problem_18.md) | [**Home**](../README.md) | [>> Heterogeneous Data](./problem_20.md)
+[A Case Study in Strings <<](./problem_18.md) | [**Home**](../README.md) | [>> What's Better Than One Iterator?](./problem_20.md)

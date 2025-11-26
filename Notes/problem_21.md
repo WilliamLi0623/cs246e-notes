@@ -1,6 +1,6 @@
-[Abstraction over containers << ](./problem_18.md) | [**Home**](../README.md) | [>> I'm leaking!](./problem_20.md)
+[What's Better Than One Iterator? << ](./problem_20.md) | [**Home**](../README.md) | [>> I'm leaking!](./problem_22.md)
 
-# Problem 21 - Heterogenous Data
+# Problem 21 - Heterogeneous Data
 ## **2025-10-22**
 
 I want a mixture of types in my `Vector`.
@@ -186,7 +186,7 @@ If you want subclasses to have priviledged access
 - Also recall that `new` and `delete` would be all step 1 to 4, while `operator new` would be step 1, then placement new `new (addr) obj` would be step 2-4, and samething for operator delete and invoking destructor.
 - Roughly speaking, `new = operator new + placement new`.
 
-Must revist everything we have learnt to see the effect of inheritance
+Must revist everything we have learnt to see the effect of inheritance.
 
 ## Type compatibility
 `Text`s and `Comic`s are special kinds of `Book`s - should be usable in place of `Book`s.
@@ -422,4 +422,4 @@ Note that, if a subclass does not **override** a virtual method of the superclas
 - In the example above, if `Comic` does not override `Book`, then the `vtable` would just point to `Book::isHeavy`
 
 ---
-[Abstraction over containers << ](./problem_18.md) | [**Home**](../README.md) | [>> I'm leaking!](./problem_20.md)
+[What's Better Than One Iterator? << ](./problem_20.md) | [**Home**](../README.md) | [>> I'm leaking!](./problem_22.md)

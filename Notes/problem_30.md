@@ -1,75 +1,288 @@
-[I want an even faster vector <<](./problem_27.md) | [**Home**](../README.md) | [>> Collecting Stats](./problem_29.md)
+[Do You Expect Me to be Able to Do Something Like That? <<](./problem_29.md) | [**Home**](../README.md) | [>> I Want to Print the Unprintable!](./problem_31.md)
 
-# Problem 28: I want to print the unprintable!
-## **2021-11-23**
+# Problem 30: I Want an Even Faster Vector
+## **2025-11-19**
 
-Recall [problem 7](Notes/../problem_7.md): 
-- Wanted to print a `vector`
-- `vector` used to hold int
-- now is a template
+In the good old days of C, you could copy an array (even an array of structs!) very quickly by calling a function `memcpy` (similar to `strcpy`, but for arbitrary memory, not just characters).
 
-Can do a templated `operator<<`
-- Will work if `T` is printable
-- won't compile otherwise
+`memcpy` was probably written in assembly, and was as fast as the machine could possibly be.
 
-What we want now:
-- print `T` if `T` is printable
-- print a default msg (e.g, "unprintable") in case `T` is not printable
+Now in C++, copies invoke copy constructors, which are costly function calls.
 
-How might we do this?
-- two overloads for the two different behaviors
+Can we go back to these simpler times?
 
-```cpp
-struct true_type {};
-struct false_type {};
+In C++, a type is considered **POD (plain old data)** if it:
+- Has a trivial default constructor (equiv. to `= default`).
+- Is trivially copyable.
+  - Big 5 all have default implementations.
+- Is standard layout.
+    - No virtual methods or bases.
+    - All members have the same visibility.
+    - No reference members.
+    - No fields in both class & subclass, or in more than one base class.
 
-template <typename T> void doOutput(const T& x, true_type) {
-    std::cout << x;
-}
+For POD types, semantics is compatible with C, and `memcpy` is safe to use.
 
-template <typename T> void doOutput(const T& x, false_type) {
-    std::cout << "unprintable" << std::endl;
+How can we use it? - Only safe to use if `T` is a POD type
+
+## **2025-11-20**
+
+_One option:_
+
+```C++
+template<typename T> class vector {
+private:
+    size_t n, cap;
+    T *theVector;
+public:
+    // ...
+    vector(const vector &other): 
+        theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
+        // value is true if T is pod, false otherwise
+        if (std::is_pod_v<T>) {
+            memcpy(theVector, other.theVector, n * sizeof(T));
+        } else {
+            // as before
+        }
+    }
 }
 ```
 
-Top-level wrapper:
+Works... But condition is evaluated at run-time, but the result is known at compile-time (compiler may or may not optimize)
 
-```cpp
-template <typename T> void output (const T& x) {
-    doOutput(x, typename has_output<T>::type{});
+_Second option (at compile-time, outdated):_
+- Make two versions of the constructor, both templates, have exactly one of them be valid based on `std::is_pod_v<T>`. Then SFINAE will pick up the valid one.
+
+```C++
+template<typename T> class vector {
+// ...
+public:
+    template<typename X = T>
+    vector(enable_if<std::is_pod_v<X>, const T&>::type other): 
+        theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
+            memcpy(theVector, other.theVector, n * sizeof(T));
+        }
+
+    template<typename X = T>
+    vector(enable_if<!std::is_pod_v<X>, const T&>::type other):
+        theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
+            // original implementation
+        }
 }
 ```
-- Given `T`, should produce `true_type` if `T` supports output, false otherwise.
-- How do we do this???
 
-```cpp
-template <typename T> struct has_output {
-    using type = decltype(output_test<T>(0));
+How does it work?
+
+```C++
+template<bool b, typename T> struct enable_if;
+template<typename T> struct enable_if<true, T> {
+    using type = T;
 };
 ```
-- Recall `decltype` only test the types of the expression, but not evaluating it (we don't want it to be evaluated anyway).
-- Now we overload function `output_test` such that a version returning `false_type` is always available, but the version returning `true_type` is a better match, but is only available if `T` supports output.
 
-```cpp
-// no need any implementation since we won't even run it anyway
-template <typename T> false_type output_test(...);
+_Third option (concepts):_
 
-template <typename T, typename = decltype(cout << T())> true_type output_test(int);
+```C++
+template <typename T> class vector {
+    // ...
+public:
+    template<typename X = T> requires std::is_pod_v<X>
+    vector(const T &other): 
+        theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
+            memcpy(theVector, other.theVector, n * sizeof(T));
+        }
+
+    template<typename X = T> requires !std::is_pod_v<X>
+    vector(const T &other):
+        theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
+            // original implementation
+        }
+};
 ```
-- If `T` has output, then `typename` has type `ostream`, and otherwise it would be invalid (but still compile because SFINAE)
-- Putting `(int)` will always guarantee that it is a better match.
-- Ok well, what if `T` doesn't have a default ctor? That would be invalid even though `T` is printable (wrong result)?
-- Hack: we don't actually need a `T` object to perform the cout anyway (because it would never need to be constructed), so what's the other way we could make a `T` object? A function that return `T`. Do we have one? Doesn't matter, we can pretend we do.
 
-```cpp
-template <typename T> T&& declval();
+So this compiles, but it crashes. Why? If you put debugging print statements, in these copy constructors, they don't print.
+- We're getting the provided copy constructor => shallow copies.
+- These templates are not enough to suppress the generation of the provided copy constructor. - And a non-templated match is always preferred over a templated match.
+
+What can we do about this? Could try:
+
+```C++
+vector (const vector &) = delete;
 ```
-- use refs here so that we don't assume that `T` has a copy/move ctor
-- Now we have
 
-```cpp
-template <typename T, typename = decltype (cout << declval<T>())> true_type output_test(int);
+Not allowed, can't disable the copy constructor and still write one.
+
+Solution that actually works: **overloading**
+
+```C++
+template<typename T> class vector {
+    // ...
+    // A dummy structure just give me a type so I can overload on.
+    struct dummy{};
+public:
+    vector(const vector &other): vector{other, dummy{}} {}
+
+    template<typename X = T> requires is_pod_v<X>
+    vector(const vector &other, dummy) { ... }
+
+    template<typename X = T> requires !is_pod_v<X>
+    vector(const vector &other, dummy) { ... }
+};
+```
+
+_Forth option (constexpr if):_
+If you just want to use a compile-time value to choose between implementations, there is an easier way.
+
+```C++
+template <typename T> class vector {
+    // ...
+    struct dummy{};
+public:
+    vector (const vector &other): theVector{static_cast<T*>(operator new (other.n * sizeof(T)))}, n{other.n}, cap{other.cap} {
+        if constexpr (std::is_pod_v<T>) {
+            memcpy(theVector, other.theVector, n * sizeof(T));
+        } else {
+            // original implementation
+        }
+    }
+};
+```
+
+For constexpr if:
+- Condition must be a compile-time value.
+- Non-matching branch is **discarded**.
+
+## Move / Forward implementation
+
+<u>Aside:</u> We now have enough machinery to implement `std::move` and `std::forward`.
+- _`std::move`_ - treat a lvalue as a rvalue (cast).
+- First attempt
+```C++
+template<typename T> T &&move(T & x) {
+    return static_cast<T &&>(x);
+}
+```
+
+Doesn't quite work, `T&&` is a universal reference, not necessarily an rvalue reference. If `x` was a lvalue reference, `T&&` is a lvalue reference.
+- Need to make sure `T` is not an lvalue reference
+    - If `T` is an lvalue reference, get rid of the reference
+    - Basically we get rid of all the ref to get the bare type with `std::remove_reference`.
+
+```C++
+template<typename T> inline typename std::remove_reference<T>::type&& move(T&& x) {
+    return static_cast<typename std::remove_reference<T>::type &&>(x);
+    // turns T&, T&& into T
+}
+```
+
+**Exercise:** write `remove_reference`
+
+**Q:** can we save typing and use `auto`? Ex.
+
+```C++
+template<typename T> auto move(T &&x) { ... }
+```
+
+**A:** No! By-value auto throws away reference and outer const
+- Recall that `auto x = y` gives x the same type as the **value** of y (i.e, the type of `y` as if it was copied)
+
+```C++
+int z;
+int &y = z;
+auto x = y; // x is an int
+
+const int &w = z;
+auto v = w; // int
+```
+
+By reference, `auto &&` is a universal reference, so the code from the question section works (it does compile), but not as we expected.
+
+But still... is there a way to do type deduction without losing ref and const?
+
+Need a type definition rule that doesn't discard references.
+
+The answer is yes, by using `decltype`. It produces the type its argument was declared to have.
+
+**Note**: The argument of `decltype` is never evaluated, only type-checked.
+
+```C++
+decltype(var)  // returns the declared type of the variable
+decltype(expr) // returns lvalue or rvalue, depending on whether the expr is an lvalue or rvalue
+
+int z;
+int &y = z;
+decltype(y) x = z;  // x is an int&, auto would only give you int
+x = 4;  // Affects z
+
+/* Path/Example 1 */
+auto z;
+x = 4;  // Does not affect z
+
+/* Path/Example 2 */
+decltype(z) s = z;  // s is an int
+s = 5; // Does not affect z
+
+/* Path/Example 3 */
+decltype((z)) r = z;    // r is an int&, since (z) is a ref, since () is an expression
+r = t;  // Does affect z
+
+decltype(auto) - perform type deduction, like auto, but use the decltype rules
+```
+
+Can we do type deduction using the `decltype` rules instead of the auto rules? 
+
+Yes - use `decltype(auto)`
+
+```C++
+template<typename T> decltype(auto) move(T &&x) {
+    return static_cast<std::remove_reference_t<T>&&>(x);
+}
+```
+
+- Let's try implementing `std::forward`
+_`std::forward`_
+```C++
+template<typename T> T&& forward(T &&x) {
+    return static_cast<T&&>(x);
+}
+```
+- Doesn't seem right - casting `x` to its own type.
+
+**Reasoning:**
+- If `x` is an lvalue, `T&&` is an lvalue reference
+- If `x` is an rvalue, `T&&` is an rvalue reference
+
+Doesn't work, `forward` is called on expressions that are lvalues, that may point at rvalues.
+
+```C++
+template<typename U> void f(U&& y) {
+    ... forward(y) ...  // y is an lvalue
+}
+```
+
+`forward(y)` is will _always_ yield an lvalue reference.
+
+In order to work, `forward` must know what type (including l/rvalue) was deduced for `y`, ie. needs to know `U`.
+
+So in principle, `forward<U>(y)` would work.
+
+**2 Problems:**
+- Supplying `T` means `T&&` is no longer universal
+- Want to prevent the user from omitting `<T>`
+
+**Instead:** separate lvalue/rvalue cases
+
+```C++
+template<typename T> 
+inline constexpr T&& forward(std::removed_reference_t<T>&x) noexcept {
+    return static_cast<T&&>(x);
+}
+
+template<typename T> 
+inline constexpr T&& forward(std::removed_reference_t<T>&&x) noexcept {
+    return static_cast<T&&>(x);
+}
 ```
 
 ---
-[I want an even faster vector <<](./problem_27.md) | [**Home**](../README.md) | [>> Collecting Stats](./problem_29.md)
+[Do You Expect Me to be Able to Do Something Like That? <<](./problem_29.md) | [**Home**](../README.md) | [>> I Want to Print the Unprintable!](./problem_31.md)

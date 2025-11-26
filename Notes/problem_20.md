@@ -1,6 +1,6 @@
-[Abstraction over containers << ](./problem_18.md) | [**Home**](../README.md) | [>> I'm leaking!](./problem_20.md)
+[Abstraction Over Containers << ](./problem_19.md) | [**Home**](../README.md) | [>> Heterogeneous Data](./problem_21.md)
 
-# Problem 20 - What's better than one iterator?
+# Problem 20 - What's Better Than One Iterator?
 ## **2025-10-21**
 - Two iterators!
 
@@ -122,4 +122,4 @@ auto x = v
 - Just like a Bash pipeline!
 
 ---
-[Abstraction over containers << ](./problem_18.md) | [**Home**](../README.md) | [>> I'm leaking!](./problem_20.md)
+[Abstraction Over Containers << ](./problem_19.md) | [**Home**](../README.md) | [>> Heterogeneous Data](./problem_21.md)

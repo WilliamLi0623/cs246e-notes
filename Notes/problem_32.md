@@ -1,79 +1,70 @@
-[Collecting Stats <<](./problem_29.md) | [**Home**](../README.md) | [>> Polymorphic Cloning](./problem_31.md)
+[Move / Forward Implementation <<](./problem_31.md) | [**Home**](../README.md) | [>> Variants Revisited](./problem_33.md)
+# Problem 32 - Variants Revisited
+## **2025-11-20**
 
-# Problem 34 - Resolving Method Overrides at Compile-Time
-## **2025-11-25**
-
-**Recall:** Template Method Pattern
-
-```C++
-class Turtle {
-    public:
-        void draw() {
-            drawHead();
-            drawShell();
-            drawFeet();
-        }
-    private:
-        void drawHead();
-        virtual void drawShell() = 0;   // vtable lookup
-        void drawFeet();
-};
-
-class RedTurtle: public Turtle {
-    void drawShell() override;
-};
-```
-
-- Is there a way to avoid vtable lookup?
-
-**Consider:**
+Core idea: Turn `variant<T1, ..., Tn>` into a union with fields of type `T1, ..., Tn`.
 
 ```C++
-template<typename T> class Turtle {
-    public:
-        void draw() {
-            drawHead();
-            static_cast<T*>(this)->drawShell();
-            drawFeet();
-        }
-    private:
-        void drawHead();
-        void drawFeet();
-};
+template<typename... Types> union variant_base {};
 
-class RedTurtle: public Turtle<RedTurtle> {
-    friend class Turtle;
-    void drawShell();
+template<typename First, typename ... Rest> union variant_base {
+    First first;
+    variant_base<Rest...> rest;
 };
-
-class GreenTurtle: public Turtle<GreenTurtle> {
-    friend class Turtle;
-    void drawShell();
-};
+    
+template<typename... Types> struct variant {
+    variant_base<Types... u>;
+    size_t index;
+}
 ```
 
-No virtual method methods, no vtable lookup.
-- Drawback: no relationship between `RedTurtle` and `GreenTurtle`
-    - Can't store a mix of them in a container.
-
-1. Can give `Turtle` a parent:
+Now we need `get<N>`:
+- Return the `N`th item of the variant, if the discriminator is equal to `N`.
+- Return type is the type of the `N`th item.
+  - Hence why `get<N>` is a template - for each `N`, `get<N>` produces a different return type.
 
 ```C++
-template<typename T> class Turtle: public Enemy { ... };
+template<size_t N, typename... Types> constexpr variant_alternative_t<N, variant<Types...>>& get(variant<Types...>& v);
 ```
 
-Then can store `RedTurtles` and `GreenTurtles`
-- There is no `draw` method in `Enemy`.
-- You could give Enemy a virtual `draw` method, but then you have vtables.
+Note that `get` take s `size_t N` and a pack of types `Types...`.
+
+`Types` is deducible from the arguments, `N` is not.
+
+Therefore `N` must be supplied rest need not be. Hence `get<N>(v)`.
 
 ```C++
-class Enemy {
-    public:
-        virtual void draw() = 0;
-};
+template<size_t N, typename Variant> struct variant_alternative;
+
+template<size_t N, typename First, typename... Rest> struct variant_alternative<N, variant<First, Rest...>> : variant_alternative<N-1, variant<Rest...>> {};
+
+template<typename First, typename... Rest> struct variant_alternative<0, variant<First, Rest...>> {
+    using type = First;
+}
+
+template<size_t N, typename Variant> using variant_alternative_t = typename variant_alternative<N, Variant>::type;
+
+template<size_t N, typename... Types> constexpr variant_alternative_t<N, variant<Types...>>& get(variant<Types...>& v) {
+    if (v.index != N) {
+        // throw some exception
+    } else {
+        return get_helper<N>(v.u);
+    }
+}
+
+template<size_t N, typename... Types> constexpr variant_alternative_t<N, variant<Types...>>& get_helper(variant_base<Types...>& u);
+
+template<size_t N, typename First, typename... Rest> constexpr variant_alternative_t<N, variant<First, Rest...>>& get_helper(variant_base<First, Rest...>& u) {
+    return get_helper<N-1>(u.rest);
+}
+
+template<typename... Types> constexpr variant_alternative_t<0, variant<Types...>>& get_helper(variant_base<Types...>& u) {
+    return u.first;
+}
 ```
 
-2. OR - Use a `variant`
+Exercise: Try type_based `get`. E.g. `get<int>(v)`.
+- Complication: It's an error to call `get` if the requested type occurs more than once in the variant.
 
 ---
-[Collecting Stats <<](./problem_29.md) | [**Home**](../README.md) | [>> Polymorphic Cloning](./problem_31.md)
+[Move / Forward Implementation <<](./problem_31.md) | [**Home**](../README.md) | [>> Variants Revisited](./problem_33.md)

@@ -1,6 +1,6 @@
-[A big unit on Object Oriented Design <<](./object_oriented_design.md) | [**Home**](../README.md) | [>> Abstraction over Iterators](./problem_25.md)
+[A big unit on Object Oriented Design <<](./object_oriented_design.md) | [**Home**](../README.md) | [>> Shared Ownership](./problem_27.md)
 
-# Problem 26: In Which We Challenge Problem 26
+# Problem 26: In Which We Challenge Problem 25
 ## **2025-11-11**
 
 Is `dynamic_cast` really bad style?
@@ -268,4 +268,4 @@ shared_ptr<T> dynamic_pointer_cast(const shared_ptr<U> &r) {
 Similarly `const_pointer_cast`, `static_pointer_cast`
 
 ---
-[A big unit on Object Oriented Design <<](./object_oriented_design.md) | [**Home**](../README.md) | [>> Abstraction over Iterators](./problem_25.md)
+[A big unit on Object Oriented Design <<](./object_oriented_design.md) | [**Home**](../README.md) | [>> Shared Ownership](./problem_27.md)

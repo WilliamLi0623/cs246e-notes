@@ -1,210 +1,162 @@
-[I want total control over vectors and lists <<](./problem_36.md) | [**Home**](../README.md) | [>> I want a (tiny bit) smaller vector class](./problem_38.md) 
+[Policies <<](./problem_34.md) | [**Home**](../README.md) | [>> I want total control over vectors and lists](./problem_36.md) 
 
-# Problem 37: A fixed-size object allocator
-## **2021-11-30**
+# Problem 35: Total Control
+## **2021-11-25**
 
-A custom allocator can be significantly faster than the standard allocator. Why?
+CPP lets you control pretty much everything. You can control:
+- Copies
+- Parameter passing
+- Initialization
+- Method call resolution
+- Etc.
 
-**Fixed size allocator:** all allocated "chunks" are the same size (ie. customized code for one class) - no need to keep track of sizes
-- Beside - many traditional allocators would store the size of the block before the pointer so that the allocator knows how much space is allocated to that pointer.
+Control over memory allocation:
 
-**Fixed size:**
-- Saves space (no hidden size field)
-- Saves time (no hunting for a block of the right size)
+Memory allocators are tricky to write, so we have 2 questions:
 
-**Approach:** create a pool of memory  - an array large enough to hold `n` `T` objects.
-- When a slot in the array is given to the client, it will act as a `T` object
-- When we have it, it will act as a node in a linked list
-- Store an `int` in each slot, each slot stores the index of the next slot in the list
-
-To initialize, it would store the index of the first slot in the list. To demonstrate, initially, we have
-```
-first_available
-     +---+            +---+---+---+---+-----+----+
-     | 0 |----------->| 1 | 2 | 3 | 4 | ... | -1 |
-     +---+            +---+---+---+---+-----+----+
-
-                        0   1   2   3         n-1
-```
-Allocation: from the front
-```
-          Allocated
-+---+       +---+---+---+---+-----+----+
-| 1 |       |///| 2 | 3 | 4 | ... | -1 |
-+---+       +---+---+---+---+-----+----+
-
-              0   1   2   3         n-1
-
-+---+       +---+---+---+---+-----+----+
-| 2 |       |///|///| 3 | 4 | ... | -1 |
-+---+       +---+---+---+---+-----+----+
-
-              0   1   2   3         n-1
-```
-Deallocation:
-```
-Free item 0
-+---+       +---+---+---+---+-----+----+
-| 0 |       | 2 |///| 3 | 4 | ... | -1 |
-+---+       +---+---+---+---+-----+----+
-
-              0   1   2   3         n-1
-
-Free item 1
-+---+       +---+---+---+---+-----+----+
-| 2 |       | 2 | 0 | 3 | 4 | ... | -1 |
-+---+       +---+---+---+---+-----+----+
-
-              0   1   2   3         n-1
-```
-- Allocation/deallocation is constant time and very fast
-
-_Implementation:_
+### **Why write an allocator?**
+- Built-in one is too slow
+    - Optimized for general purpose, not optimized for specific use
+    - Ex. If you know you will always allocate objects of the same size, a custom allocator may perform better
+- You want to optimize locality
+    - Maybe you want a separate heap, just for objects of some class `C`, keeps the objects close to each other (recall the concept of caching). May improve performance.
+- You want to use "special memory"
+    - Put objects in shared memory where other programs can see them
+- You want to profile your program
+    - Collect stats on your program's allocation patterns, so that you can decide whether further optimization is justified
+- We'll concentrate on the last case because it's the easiest
+### **How do you customize an allocator?**
+- Overload `operator new`
+- If you define a global non-member `operator new`, all allocations in your program will use your allocator
+- Also if you write `operator new`, you will need to write `operator delete`. Else undefined behaviour
+- First try:
 ```C++
-template<typename T, int n> class fsAlloc {
-private:
-    // union to represent use case based on user/us having fsAlloc
-    union Slot {
-        int next;
-        T data;
-        Slot(): next{0} {}
-    };
-
-    Slot theSlots[n];
-    int firstAvailable = 0;
-public:
-    fsAlloc() {
-        for (int i = 0; i < n - 1; ++ i)
-            theSlots[i].next = i + 1;
-        theSlots[n - 1].next = -1;
-    }
-
-    T *allocate() noexcept {
-        if (firstAvailable == -1) return nullptr;
-        
-        T *result = &(theSlots[firstAvailable].data);
-        firstAvailable = theSlots[firstAvailable].next;
-        return result;
-    }
-
-    void deallocate(void *item) noexcept {
-        int index = (static_cast<char*>(item) - reinterpret_cast<char*>(theSlots)) / sizeof(Slot);
-        theSlots[index].next = firstAvailable;
-        firstAvailable = index;
-    }
-};
-```
-
-Use in a class:
-
-```C++
-class Student final {
-    int assns, mt, final;     
-    static fsAlloc<Student, SIZE> pool; // SIZE - how many you want
-public:
-    // ...
-    static void* operator new(size_t size) {
-        if (size != sizeof(Student)) throw std::bad_alloc;
-
-        while (true) {
-            void *p = pool.allocate();
-            if (p) return p;
-            std::new_handler h = std::get_new_handler();
-            if (h) h();
-            else throw std::bad_alloc;
-        }
-    }
-
-    static void* operator delete(void *p) noexcept {
-        if (p == nullptr) return;
-        pool.deallocate(p);
-    }
-};
-
-// static field so it needs to be declared here
-fsAlloc<Student, SIZE> Student::pool;
-```
-_Example main:_
-```C++
-int main() {
-    Student *s1 = new Student;  // Uses custom allocator
-    Student *s2 = new Student;  // Uses custom allocator
-    delete s1;
-    delete s2;
+void *operator new(size_t size) {
+    std::cout << "Request for " << size << "bytes\n";
+    return malloc(size);
 }
 ```
-- Is it fast? Yes, the example in lectures show that allocating 10000 objects would take 2 seconds less than the built-in one (7 to 5)
-- Using O3 optimization, the built-in one took 6 while the custom took 2.
-- Percentage-wise, this is pretty good
+```C++
+void operator delete(void *p) {
+    std::cout << "Freeing " << p << std::endl;
+    free(p);
+}
+```
+```C++
+int main() {
+    int *x = new int;
+    delete x;
+}
+```
+- Works but is not correct because it doesn't adhere to convention
+    - If `operator new` fails, it is supposed to throw `bad_alloc`
+    - But actually if `operator new` fails, it is supposed to call the `new_handler` function
+        - The `new_handler` can:
+            - Free up space (somehow)
+            - Install a different `new_handler`/uninstall the current
+            - Throw `bad_alloc`
+            - Abort/exit
+        - `new_handler` should be called in an infinite loop
+        - If `new_handler` is a `nullptr`, `operator_new` throws
+        - Also `new` must return a valid pointer if `size == 0` and `delete` of a `nullptr` must be safe
+- Correct implementation:
+```C++
+#include <new>
+void* operator new(size_t size) {
+    std::cout << " " << 
+    if (size == 0) size = 1;
+    while (true) {
+        void *p = malloc(size);
+        if (p) return p;
+        std::new_handler h = std::set_new_handler();
+        if (h) h();
+        else throw std::bad_alloc{};
+    }
+}
+void operator delete(void *p) {
+    if (p == nullptr) return;
+    std::cout << "Deleting" << p << std::endl;
+    free(p);
+}
+```
+- Replacing global `operator new`/`delete` affects your entire program
+- More likely - replace on a class-by-class basis
+    - Especially if you are writing allocators specifically tuned to the sizes of your objects
+- To do this - make `operator new`/`delete` members
+    - Must be `static` members
+```C++
+class C {
+public:
+    static void *operator new(size_t size) {
+        std::cout << "Running class C's allocator" << std::endl;
+        return ::operator new(size);
+    }
+    static void operator delete(void *p) noexcept {
+        std::cout << "Freeing " << p << std::endl;
+        return ::operator delete(p);   // :: refers to global namespace
+    }
+};
+```
+- Generalize - log to an arbitrary stream
+```C++
+class C {
+public:
+    static void *operator new(size_t size, std::ostream &out) {
+        out << "Running class C's allocator" << std::endl;
+        return ::operator new(size);
+    }
+    
+    static void operator delete(void *p, std::ostream &out) noexcept {
+        out << "Placement delete: " << p << std::endl;
+        return ::operator delete(p);   
+    }
+};
+```
+```C++
+C *x = new(std::cout) C;  // log to cout
+ofstream f{...}
+C *y = new(f) C;
+```
+- Note when you create a `new` that takes in parameters, it is called **placement new**, not to be confused with the other **placement new** where you initialize an object into already allocated memory
+- Won't compile! You also need "ordinary" delete
+```C++
+class C {
+public:
+    // ...
+    static void operator delete(void *p) noexcept {
+        std::cout << "Ordinary delete (cout): " << p << std::endl;
+        return ::operator delete(p);   
+    }
+};
+```
+then we can have
+```C++
+C *p = new(f) C; // Running C's allocator
+delete p;   // print Ordinary delete (cout)
+```
+- If the client calls `delete p`, there needs to be a non-specialized `operator delete`, else compile-error
+- How can you call specialized delete? You can't!
+- Then why do we need it?
+- If the constructor the called specialized `operator new` throws, it will call the specialized `operator delete` that matches `operator new`
+    - If there isn't one, no `delete` gets called => leak
+- Ex.
+```C++
+class C {
+// ...
+public:
+    C(bool b) { if (b) throw 0; }
+};
+```
+```C++
+try {
+    C *p = new(std::cout) C{true};  // throws, calls specialized delete
+    delete p; // Not reached
+} catch(...) {}
+C *q = new(std::cout) C{false}  // Does not throw
+delete q;   // Ordinary operator delete
+```
 
-
-**Question:** Where do `s1` and `s2` reside?
-
-**Answer:** Static memory (NOT the heap)
-- Depending on how you build your allocator, you could arrange for stack/heap memory as well
-- Extra, for sweaty tryhards: use policy lol
-
-**More notes:** 
-- We used a union to hold both `int *T` 
-    - Advantages: Wastes less space
-    - Disadvantage: if you access a dangling `T` pointer, you can corrupt the linked list
-        ```C++
-        Student *s = new Student;
-        delete s;
-        s->setAssns(...);
-        ```
-- Lesson: following a dangling pointer can be VERY dangerous
-- We could have used a struct `[ next | T ]`
-    - Advantages: `next` is before the `T` object, so you have to work hard to corrupt it (this example is not something you do by accident)
-    ```C++
-    reinterpret_cast<int *>(s)[-1] = ...
-    ```
-    - Disadvantages:
-        - Using union - if one of the fields has a ctor, you have to give the union a ctor, since it's a union, the ctor should initialize only one field
-        - On the other hand, if `T` doesn't have a default constructor, you will have difficulty
-        ```C++
-        struct Slot {
-            int next;
-            T data;
-        };
-
-        Slot theSlots[n];   // X - if T has no default constructor
-        ```
-    - Can't do the trick of  `operator new`/`placement new`
-        - We are trying to write our own replacement for `operator new`!
-        - Workaround:
-        ```cpp
-        struct SlotChars {
-            char arr[sizeof(Slot)];
-        }
-        SlotChars theSlotChars[n];
-        Slot* theSlot = reinterpret_cast<Slot*>(theSlotChars);
-        ```
-        which is kinda gross
-        - Other way: take advantage of the fact that union only needs to initialize one field, we can just put a dummy char and the slot inside a union then initialize the char
-        ```C++
-        union SlotChar {
-            char dummy; // As before
-            slot s;
-            SlotChar(): dummy{0} {}
-        };
-        SlotChars theSlot[n];
-        ```
-
-Also:
-- Why store indices instead of addresses?
-    - `int`s are smaller than ptrs on this machine (32 vs 64 bits)
-    - So waste no memory as long as `T` >= size of an `int`, but we do waste memory if `T` smaller than an `int`
-        - To avoid, we could use a smaller index than an `int`, ex. `short`, `char`, as long as you don't want more items than the type can hold (you prob don't want more than 2 billion items)
-    - Could make the index type a parameter of the template
-- Why is the class `Student` declared `final`?
-    - We have written a _fixed-size allocator_
-    - If the `Student` has a subclass that adds fields, the subclass will still use `Student::operator new`, which will not allocate enough space to hold the subclass objects
-        - Options to resolve:
-          - Have no subclasses (`final`)
-          - Check size, throw if it isn't the right size (our impl has both of this and the above, though one would be enough. Note that `final` would check at compile time, while throwing detects it at runtime)
-          - Check size, use global operator new/delete if not the right size (note that operator delete can take a second parameter that contains the size of the memory being deleted)
-          - Derived class can have its own allocator
+Customizing array allocation - overload `operator new[]` and `operator delete[]`.
 
 ---
-[I want total control over vectors and lists <<](./problem_36.md) | [**Home**](../README.md) | [>> I want a (tiny bit) smaller vector class](./problem_38.md) 
+[Policies <<](./problem_34.md) | [**Home**](../README.md) | [>> I want total control over vectors and lists](./problem_36.md) 

@@ -1,4 +1,4 @@
-[I'm leaking! << ](./problem_20.md) | [**Home**](../README.md) | [>> The copier is broken (again)](./problem_22.md)
+[I'm leaking! << ](./problem_22.md) | [**Home**](../README.md) | [>> The Copier is Broken (Again)](./problem_24.md)
 
 # Problem 23 - If a Class Has No Objects
 ## **2025-10-28**
@@ -63,4 +63,4 @@ Abstract classes
 - Can give partial implementation.
 
 ---
-[I'm leaking! << ](./problem_20.md) | [**Home**](../README.md) | [>> The copier is broken (again)](./problem_22.md)
+[I'm leaking! << ](./problem_22.md) | [**Home**](../README.md) | [>> The Copier is Broken (Again)](./problem_24.md)

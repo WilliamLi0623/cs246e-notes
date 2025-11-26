@@ -1,203 +1,210 @@
-[Abstraction over Iterators <<](./problem_25.md) | [**Home**](../README.md) | [>> I want an even faster vector](./problem_27.md)
+[Shared Ownership <<](./problem_27.md) | [**Home**](../README.md) | [>> Do You Expect Me to be Able to Do Something Like That?](./problem_29.md)
 
-# Problem 29: Do you expect me to be able to do something like that?
+# Problem 28: Abstraction Over Iterators
+## **2025-11-13**
+
+I want to jump ahead `n` spots in my container.
+
+```C++
+template<typename Iter> Iter advance(Iter it, size_t n);
+```
+
+How should we do it?
+
+```C++
+for (size_t i = 0 ; i < n ; ++ i) ++ it;
+return it;
+```
+
+But this is so damn slow (`O(n)` time), can't we say `it += n`?
+
+Depends:
+- For `vector`, yes (O(1) time).
+- For `list`, no (`+=` not supported, and if it was it'd still be in a loop).
+
+Related - Can we go backwards (`--`, `-=`)?
+- `vector`, yes.
+- `list` no.
+- `std::list` yes.
+
+So all iterators support `!=`, `*`, `++`, but some iterators support other operations.
+
+- `list::iterator` - called a **forward iterator**, can only go one step forward.
+- `std::list::iterator` - called a **bidirectional iterator**.
+- `vector::iterator` - called a **random access iterator** can go anywhere (arbitrary pointer arithmetic).
 
 ## **2025-11-18**
 
-Template tricks were kind of an accident. Templates weren't originally designed for compile-time tricks.
+How can we write `advance` to use `+=` for random access iterators and a loop for forward iterators.
 
-But now that it's an accepted thing, can it be made easier?
-
-Let's start by advancing random access iterators.
-- If the iterator is random acccess, use `+=`.
-- Else the code should not compile.
+Since we have different kinds of iterators let's create a type hierarchy:
 
 ```C++
-template<typename Iter> requires std::is_same_v<iterator_traits<Iter>::iterator_category, random_access_iterator_tag>
-Iter advance(Iter it, size_t n) {
-    it += n;
+struct forward_iterator_tag: input_iterator_tag{};
+struct bidirectional_iterator_tag: forward_iterator_tag{};
+struct random_access_iterator_tag: bidirectional_iterator_tag{};
+```
+
+These are called `tag`, a class or struct with no fields and an empty body. This technique is called **tag dispatching**, done until C++17, and replaced by **concepts** in C++20 (ref-link [here](https://internalpointers.com/post/writing-custom-iterators-modern-cpp))
+
+To associate each iterator class with a `tag`, could use inheritance:
+
+Ex.
+
+```C++
+class list {
+    // ...
+    public:
+        class iterator: public forward_iterator_tag {
+            // ...
+        };
+};
+```
+
+But: this makes it hard to ask what kind of iterator we have (can't `dynamic_cast`, no `vtables`).
+- Doesn't work for iterators that aren't classes (eg. pointers).
+
+Instead make the `tag` a member:
+
+```C++
+class list {
+    // ...
+    public:
+        class iterator { 
+            // ...
+            public:
+                using iterator_category = forward_iterator_tag;
+                // typedef forward_iterator_tag iterator_category;
+        };
+};
+```
+
+**Convention:** every iterator class will define a type member called `iterator_category`.
+- Still doesn't work for iterators that aren't classes.
+- But we aren't done yet.
+
+Make a template that associates every iterator type with its category.
+
+```C++
+template<typename It> struct iterator_traits {
+    using iterator_category = It::iterator_category;
+    // typedef typename It::iterator_category if older C++
+};
+
+// Ex.
+iterator_traits<List<T>::iterator>::iterator_category // forward_iterator_tag
+```
+
+And then we can provide a specialized version for **pointers**:
+
+```C++
+template<typename T> struct iterator_traits<T*> {
+    using iterator_category = random_access_iterator_tag; // put the tag name directly here rather than through It::iterator_category, apparently because we don't have a class for pointers
+};
+```
+
+For any iterator type `T`, `iterator_traits<T>::iterator_category` resolves to the `tag` struct for `T` (including if `T` is a pointer).
+
+What do we do with this?
+
+Want:
+
+```C++
+template <typename Iter>
+Iter advance(Iter it, int n) {
+    if (typeid(typename iterator_traits<Iter>::iterator_category) 
+        == typeid(random_access_iterator_tag)) {
+        return it += n;
+    } else {
+        // ...
+    }
+
+}
+```
+
+- But this won't compile.
+- If the iterator is not random access, and doesn't have a `+=` operator, `it += n` will cause a compilation error, even though it will never be used.
+- Moreover, the choice of which implementation to use is being made at run-time, when the right choice is known at compile-time.
+
+To make a compile-time decision - overloading.
+- Make a dummy parameter with type of the iterator `tag`.
+
+```C++
+template <typename Iter>
+Iter doAdvance(Iter it, int n, random_access_iterator_tag) {
+    return it += n;
+}
+
+template <typename Iter>
+Iter doAdvance(Iter it, int n, bidirectional_iterator_tag) {
+    if (n > 0) for (int i = 0 ; i < n ; ++ i) ++ it;
+    else if (n < 0) for (int i = 0 ; i > n ; -- i) -- it;
     return it;
 }
 
-template<typename T, typename U> struct is_same {
-    static const bool value = false;
-};
-
-template<typename T> struct is_same <T,T> {
-    static const bool value = true;
-};
-
-template<typename T, typename U> constexpr bool is_same_v = is_same<T,U>::value;
+template <typename Iter>
+Iter doAdvance(Iter it, int n, forward_iterator_tag) {
+    if (n >= 0) {
+        for (int i = 0; i < n; ++ i) ++ it;
+        return it;
+    }
+    throw SomeError{};
+}
 ```
 
-- `requires` clause constraints `Iter` such that the stated condition must be true.
-
-What happens if we try to advance a non-random access iterator? `advance (list.begin(),4)`.
-
-If we didn't have the `requires` clause:
-- `No operator += for list::iterator`.
-  - (Typically long output).
-- Now that we do - compiler says `list::iterator` fails the `requires` clause.
-
-## **2025-11-19**
-
-We like abstraction - Can we name this constraint?
-- Called a **concept**.
+Finally, create a wrapper function to select the right overload:
 
 ```C++
-template<typename Iter>
-concept RandomAccessIterator = std::is_same_v<iterator_traits<Iter>::iterator_category, random_access_iterator_tag>;
-```
-
-We can now write:
-
-```C++
-template<typename Iter> requires RandomAccessIterator<Iter>
+template <typename Iter>
 Iter advance(Iter it, int n) {
-    return it+=n;
+    return doAdvance(it, n, typename iterator_traits<Iter>::iterator_category{});
 }
 ```
 
-OR:
+Now the compiler will select the fast `doAdvance` for random access iterators, the slow `doAdvance` for bidirectional iterators, and the throwing `doAdvance` for forward iterators.
+
+These choices made at **compile-time** - no runtime cost.
+
+Using template instantiation to perform compile-time computation - called **template metaprogramming**
+
+C++ templates form a functional language that operates at the level of types.
+- Express conditions by overloading, repetition via recursive template instantiation.
+- Also turing complete.
+  - There are template instantiation that don't terminate, because expressing arbitrary computations implies expressing non-terminating computations.
+  - As a result, compiler usually put a limit on recursion depth.
+
+Example:
 
 ```C++
-template<RandomAccessIterator Iter>
-Iter advance(Iter it, int n) {
-    return it += n;
-}
-```
-
-Can we write
-
-```C++
-RandomAccessIterator advance(RandomAccessIterator it, int n) {
-    return it += n;
-}
-```
-
-No - `RandomAccessIterator` is not a type, it's a constraint on a type.
-
-And code making use of conecepts is a template.
-- This advance looks like an ordinary function.
-
-We can do this:
-
-```C++
-RandomAccessIterator auto advance(RandomAccessIterator auto it, int n) {
-    return it += n;
-}
-```
-
-Can write concepts for the other categories.
-
-```C++
-BidirectionalIterator auto advance(BidirectionalIterator auto it, int n) {
-    // ...
-}
-
-ForwardIterator auto advance(ForwardIterator auto it, int n) {
-    // ...
-}
-```
-
-Now if, for example, an iterator's category is `BidirectionalIterator`, the `BidirectionalIterator` version will compile and the other two will fail the template instantiation.
-
-So is this program well-formed? Yes!
-
-C++ rule: **SFINAE**
-- Substitution Failure Is Not An Error.
-
-In other words - if `t` is a type and `template<typename T> ... f (...) {...}` is a template function, and substituting `t` for `T` results in an invalid function, the compiler does **not** signal an error - it just removes that instantiation from consideration during overload resolution.
-
-On the other hand - if **no** version of the function is in scope to handle the overload call, that is an error.
-- Only applies to template functions.
-
-What if we tell lies? What is we give the class the `RandomAccessIterator` category, but don't give a `+=` operator?
-
-The function will pass concept check, but compilation will fail at the attempted use of `+=`.
-- The "old" error checking, prior to concepts.
-
-We could expand our definition of `RandomAccessIterator` to include **both** the right category **and** the needed operations.
-
-```C++
-template<typename T> concept RandomAccessIterator = 
-    std::is_same_v<iterator_traits<T>::iterator_category, random_access_iterator_tag> &&
-    requires (T it, T other, int n) {
-        {it != other} -> std::same_as<bool>;
-        {++it} -> std::same_as<T>;
-        {it += n} -> std::same_as<T>;
-    };
-```
-
-Etc. for other iterator types.
-
-Now a type with the right category but is missing the needed operations will fail the concept check.
-
-Q: Do we need the iterator tag any more then? Are the listed operations enough?
-A: The tag is still valuable. Provides semantic information about the operations. Suppose an iterator is `BidirectionalIterator` but also has `+=` for some unrelated purpose. Need the tag to keep it from being treated as `RandomAccessIterator`.
-
-# Problem 26: Generalize the Visitor Pattern
-## **2021-11-18**
-
-Recall the visitor pattern:
-```C++
-class Book {
-    // ...
-public:
-    virtual void accept (BookVisitor &v) { v.visit(*this); }
+template <int N> struct Fact {
+    static const int value = N * Fact<N - 1>::value;
 };
 
-class Test: public Book {
-    // ...
+template<> struct Fact<0> {
+    static const int value = 1;
 };
 
-class BookVisitor {
-public: 
-    virtual void visit (Book& b) = 0;
-    virtual void visit (Text& t) = 0;
-    virtual void visit (Comic& c) = 0;
+int x = Fact<5>::value; // 120 - evaluated at compile-time!!!
+```
+
+But for compile-time computation of values, C++ offers a more straightforward facility:
+
+```C++
+constexpr int fact(int n) {
+    if (n == 0) return 1;
+    else return n * fact(n - 1);
 }
 ```
-- Can we automate this process of creating `visit`? I mean we have **template metaprogramming**
 
-Consider the following:
+- `constexpr` functions
+    - evaluate this at compile-time if `n` is a compile-time constant.
+    - else evaluate at runtime.
 
-_visitor.h_
-```C++
-// right now it would work no matter how many arguments I supply, we will specialize the template for the case when the list of arguments is not empty, so this will only trigger when this is empty
-template <typename...> class Visitor {
-public:
-    void visit();
-    virtual ~Visitor() {}
-};
-
-// this template has at least 1 known first item
-template <typename T, typename... Ts> class Visitor<T, Ts...> : public Visitor<Ts...> {
-public:
-    // here I inherit whatever visit my parent has, bring parents' visit to the scope
-    using Visitor<Ts...>::visit;
-    // and I add a visit method that takes a T&
-    // for the code above, if we unwind the recursion, we know at each level we would get a visit, until
-    // we reach the top level (which is the previous Visitor class), which we would only
-    // have a visit method that takes in nothing (trivial case)
-    virtual void visit(T& b) = 0;
-}
-```
-- You might be wondering why we need to bring the parent's `visit` methods into scope. Aren’t they already present due to the public superclass declaration? Well,
-  - If you overload a method that you are inheriting, so your parent gives you a method with one signature, and you give the same method with another signature, they are not considered equivalent. 
-  - In terms of overload resolution, the one in your scope will take priority over anything else. 
-  - So in order to make an inherited method that is an overload of a method that you have, operate at the same level of preference for overload resolution, you have to use a `using` to bring it into your scope.
-  - That's true whether you are writing templates, or you are writing ordinary classes.
-
-Anyway, now, what we can do is:
-
-_BookVisitor.h_
-```C++
-class Book; class Text; class Comic; // forward declaration
-
-// this will generate the old BookVisitor
-using BookVisitor = Visitor<Book, Text, Comic>;
-```
+Can we spam `constexpr` everywhere?
+- A `constexpr` function must be something that actually can be evaluated at compile-time.
+  - Can't be virtual.
+  - Can't mutate non-local variables.
+  - Etc.
 
 ---
-[Abstraction over Iterators <<](./problem_25.md) | [**Home**](../README.md) | [>> I want an even faster vector](./problem_27.md)
+[Shared Ownership <<](./problem_27.md) | [**Home**](../README.md) | [>> Do You Expect Me to be Able to Do Something Like That?](./problem_29.md)
