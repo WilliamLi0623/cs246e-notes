@@ -1,16 +1,16 @@
 [I want total control over vectors and lists <<](./problem_36.md) | [**Home**](../README.md) | [>> I want a (tiny bit) smaller vector class](./problem_38.md) 
 
-# Problem 37: A fixed-size object allocator
-## **2021-11-30**
+# Problem 40: A Fixed-Size Object Allocator
+## **2021-11-27**
 
-A custom allocator can be significantly faster than the standard allocator. Why?
+As an example of how a custom allocator can be very fast, we'll write a fixed size object allocator.
 
-**Fixed size allocator:** all allocated "chunks" are the same size (ie. customized code for one class) - no need to keep track of sizes
-- Beside - many traditional allocators would store the size of the block before the pointer so that the allocator knows how much space is allocated to that pointer.
+**Fixed size allocator:** all allocated "chunks" are the same size (ie. customized code for one class) - No need to keep track of sizes.
+- Beside - Many traditional allocators would store the size of the block before the pointer so that the allocator knows how much space is allocated to that pointer.
 
 **Fixed size:**
-- Saves space (no hidden size field)
-- Saves time (no hunting for a block of the right size)
+- Saves space (No hidden size field).
+- Saves time (No hunting for a block of the right size).
 
 **Approach:** create a pool of memory  - an array large enough to hold `n` `T` objects.
 - When a slot in the array is given to the client, it will act as a `T` object

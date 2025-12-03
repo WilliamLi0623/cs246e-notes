@@ -1,15 +1,17 @@
 [Polymorphic Cloning <<](./problem_31.md) | [**Home**](../README.md) | [>> Generalize the Visitor Pattern! Part 2!](./problem_33.md)
 
-# Problem 32: Logging
-## **2021-11-25**
+# Problem 36: Logging
+## **2025-11-26**
 
 We want to encapsulate logging functionality and "add" it to any class.
+
+CRTP approach:
 
 ```C++
 template<typename T, typename Data> class Logger {
 public:
     void loggedSet(Data x) {
-        std::cout << "setting data to " << x << std::endl;
+        std::cout << "Setting data to " << x << std::endl;
         static_cast<T*>(this)->set(x);  // No virtual call overhead
     }
 };
@@ -18,14 +20,13 @@ class Box: public Logger<Box, int> {
     friend class Logger<Box, int>;
     
     int x;
-    void set(int y) { x = -y; }
+    void set(int y) { x = y; }
 public:
     Box(): x{0} { loggedSet(0); }
 };
 
 Box b;
-b.loggedSet(1);
-b.loggedSet(4);
+b.loggedSet(100);
 // etc.
 ```
 
@@ -36,14 +37,14 @@ class Box {
     int x;
 public:
     Box(): x{0} {}
-    void set(int y) { x = y ;}
+    void set(int y) { x = y;}
 };
 
 // Mixin Inheritance
 template<typename T, typename Data> class Logger : public T {
 public:
     void loggedSet(Data x) {
-        std::cout << "setting data to " << x << std::endl;
+        std::cout << "Setting data to " << x << std::endl;
         set(x); // No vtable overhead
     } 
 };
@@ -61,8 +62,8 @@ b.loggedSet(4);
 
 Note: if `SpecialBox` is a subclass of `Box`, then `SpecialBox` has no relation to `Logger<Box, int>`, nor is there any relationship between `Logger<SpecialBox, int>`, `Logger<Box, int>`.
 
-But with CRTP, `SpecialBox` is a subtype of `Logger<Box, int>`
-- Can specialize behaviour of virtual functions
+With the CRTP solution, `SpecialBox` is a subtype of `Logger<Box, int>`
+- Can specialize behaviour of virtual functions.
 
 ---
 [Polymorphic Cloning <<](./problem_31.md) | [**Home**](../README.md) | [>> Generalize the Visitor Pattern! Part 2!](./problem_33.md)

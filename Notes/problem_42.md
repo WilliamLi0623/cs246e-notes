@@ -1,7 +1,7 @@
 [A fixed-size object allocator <<](./problem_37.md) | [**Home**](../README.md)
 
-# Problem 38: I want a (tiny bit) smaller vector class
-## **2021-12-02** 
+# Problem 41: I want a (tiny bit) smaller vector class
+## **2025-12-02** 
 
 Last class (but I'm watching this lec 3 weeks after end of school term :monkaS:)
 

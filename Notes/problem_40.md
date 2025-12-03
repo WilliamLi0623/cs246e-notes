@@ -1,12 +1,12 @@
 [Total Control <<](./problem_35.md) | [**Home**](../README.md) | [>> A fixed-size object allocator](./problem_37.md)
 
-# Problem 36: I want total control over vectors and lists
+# Problem 39: Total Control over Vectors and Lists
 
-## **2021-11-30**
+## **2025-11-27**
 
-How can we incorporate custom allocation into out containers.
+How can we incorporate custom allocation into our containers.
 
-**Issue:** may want different allocators for different kinds of vectors.
+**Issue:** May want different allocators for different kinds of vectors.
 
 **Solution:** Make the allocator an argument to the template.
 
@@ -15,10 +15,10 @@ Since most users won't write allocators, we'll need a default value.
 **Template Signature:**
 
 ```C++
-template<typename T, typename Alloc = allocator<T>> class vector { ... };
+template<typename T, typename Alloc = std::allocator<T>> class vector { ... };
 ```
 
-Now write the interface for allocators and the allocator template, this is the bare minimum of allocator (it's generally hard to make good use of this):
+`std::allocator<T>` provides default allocator functionality for objects of type `T`.
 
 ```C++
 template<typename T> struct allocator {
@@ -49,12 +49,12 @@ template<typename T> struct allocator {
     const_pointer address(reference x) const noexcept { return &x; }
 
     pointer allocate(size_type n) { return ::operator new(n * sizeof(T)); }
-    void deallocate(pointer p, size_type n) { ::operator delete(p)); }
+    void deallocate(pointer p, size_type n) { ::operator delete(p); }
 
     template<typename U, typename ...Args>
     void construct(U *p, Args &&... args) {
         // placement new here
-        ::new(static_cast<void*>(p)) U(forward<Args>(args)...);
+        ::new(static_cast<void*>(p)) U(std::forward<Args>(args)...);
     }
 
     template<typename U> void destroy(U *p) { p->~U(); }
@@ -88,36 +88,37 @@ Adapting `vector`:
 Can we do the same with list?
 
 ```C++
-template<typename T, template Alloc = allocator<T>> class list { ... }
+template<typename T, typename Alloc = std::allocator<T>> class list { ... }
 ```
 
 Correct so far... but curiously, `Alloc` will never be used to allocate memory in a list.
 
-Why not? lists are node-based, which means you don't want to actually allocate `T` objects; you want to allocate nodes (which contains `T` objects and pointers).
+Why not? - `list`s are node-based, which means you don't want to actually allocate `T` objects; you want to allocate nodes (which contains `T` objects and pointers).
 
-- but `Alloc` allocates `T` objects
+- But `Alloc` allocates `T` objects.
 
 How do we get an allocator for nodes?
 
-- Every conforming allocator has a member template called `rebind` that gives the allocator type for another type:
+We could give `MyAlloc` a member that produces a different specialization of `MyAlloc`:
 
 ```C++
-template <typename T> struct allocator {
+template <typename T> class MyAlloc {
 public:
     // ...
     template <typename U> struct rebind {
-        using other = allocator<U>;
+        using other = MyAlloc<U>;
     };
-};
+}
 ```
 
 Within `list` - to create an allocator for nodes as a field of list:
 
 ```C++
-typename Alloc::rebind<Node>::other alloc;
+typename MyAlloc::rebind<Node>::other alloc; // Use this allocator
 ```
 
-Then use as in vector. Details: exercise
+Then it's the same as `vector`.
+- Could have been done with a template template parameter.
 
 ---
 

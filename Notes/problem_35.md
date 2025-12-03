@@ -30,6 +30,8 @@ public:
 
 - Having different return type is fine (i.e, different signature) since `Text` and `Comic` would still be a subclass of `Book`.
 
+**2025-11-26**
+
 Boilerplate code - Can we reuse it?
 
 Works better with an abstract base class:
@@ -43,7 +45,7 @@ public:
 
 template<typename T> class Book_cloneable : public AbstractBook {
 public:
-    T* clone() override { return new T{static_cast<T&>(*this)}; } // crtp
+    T* clone() override { return new T{static_cast<T&>(*this)}; } // CRTP
 };
 
 class Book : public Book_cloneable<Book> {};
@@ -51,7 +53,7 @@ class Text : public Book_cloneable<Text> {};
 class Comic : public Book_cloneable<Comic> {};
 ```
 
-Looks good, this works better with a flat hierarchy. However, this cloning method is not generic enough
+Looks good, this works better with a flat hierarchy. However, this cloning method is not generic enough:
 - It's tightly coupled to the `Book` hierarchy. If I want to write another class with cloning, I would need to rewrite all these again
 - Reason: `Book_cloneable` is inheriting from `AbstractBook`
 - Solution: use what we would learn in [problem 33](Notes/problem_33.md)
